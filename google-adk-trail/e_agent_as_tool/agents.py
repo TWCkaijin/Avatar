@@ -3,7 +3,11 @@ from google.adk.tools.agent_tool import AgentTool
 from google.adk.agents.invocation_context import InvocationContext
 from google.adk.events import Event
 from google.adk.agents import Agent, ParallelAgent, SequentialAgent, LlmAgent, BaseAgent
+from google.adk.agents.run_config import RunConfig
+from google.adk.runners import Runner
+from google.adk.sessions import InMemorySessionService
 from dotenv import load_dotenv
+from google.genai import types
 from typing_extensions import override
 import logging
 from typing import AsyncGenerator
@@ -67,3 +71,37 @@ trip_architect_agent = Agent(
 # --- 3. Set the Root Agent ---
 root_agent = trip_architect_agent
 print("🤖 Trip Architect Agent, with agents as tools, is ready.")
+
+
+def main() -> None:
+    prompt = "Plan one museum and one nearby restaurant in Taipei, and include estimated travel time between them."
+    runner = Runner(
+        agent=root_agent,
+        session_service=InMemorySessionService(),
+        app_name="e_agent_as_tool_example",
+        auto_create_session=True,
+    )
+    content = types.Content(role="user", parts=[types.Part.from_text(text=prompt)])
+    result_text = ""
+
+    for event in runner.run(
+        user_id="example-user",
+        session_id="e-agent-tool-session",
+        new_message=content,
+        run_config=RunConfig(),
+    ):
+        if not event.is_final_response() or not event.content or not event.content.parts:
+            continue
+        for part in event.content.parts:
+            text = getattr(part, "text", None)
+            if isinstance(text, str) and text.strip():
+                result_text = text.strip()
+
+    if not result_text:
+        raise RuntimeError("No response text returned from agent")
+
+    print(result_text)
+
+
+if __name__ == "__main__":
+    main()

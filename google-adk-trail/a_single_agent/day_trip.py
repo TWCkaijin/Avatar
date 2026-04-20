@@ -1,12 +1,16 @@
 from google.adk.agents import Agent
+from google.adk.agents.run_config import RunConfig
+from google.adk.runners import Runner
+from google.adk.sessions import InMemorySessionService
 from google.adk.tools import google_search
 from dotenv import load_dotenv
+from google.genai import types
 
 load_dotenv()
 
 root_agent = Agent(
     name="planner_agent",
-    model="gemini-2.0-flash",
+    model="gemini-2.5-flash",
     description="Agent tasked with generating creative and fun dating plan suggestions",
     instruction="""
         You are a specialized AI assistant tasked with generating creative and fun plan suggestions.
@@ -28,3 +32,46 @@ root_agent = Agent(
     """,
     tools=[google_search]
 )
+
+
+def main() -> None:
+    prompt = (
+        "For the upcoming weekend from 2026-04-25 to 2026-04-26 in Taipei, Taiwan, "
+        "generate one distinct dating plan with max 3 activities, tailored to interests: "
+        "outdoors, foodie, live music. For each place, include name, latitude, longitude, "
+        "and a short description. Return in markdown."
+    )
+
+    runner = Runner(
+        agent=root_agent,
+        session_service=InMemorySessionService(),
+        app_name="day_trip_example",
+        auto_create_session=True,
+    )
+
+    content = types.Content(role="user", parts=[types.Part.from_text(text=prompt)])
+    result_text = ""
+
+    for event in runner.run(
+        user_id="example-user",
+        session_id="day-trip-session",
+        new_message=content,
+        run_config=RunConfig(),
+    ):
+        if not event.is_final_response():
+            continue
+        if not event.content or not event.content.parts:
+            continue
+        for part in event.content.parts:
+            text = getattr(part, "text", None)
+            if isinstance(text, str) and text.strip():
+                result_text = text.strip()
+
+    if not result_text:
+        raise RuntimeError("No response text returned from agent")
+
+    print(result_text)
+
+
+if __name__ == "__main__":
+    main()

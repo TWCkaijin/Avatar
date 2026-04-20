@@ -1,7 +1,11 @@
 from google.adk.agents import Agent
 from google.adk.tools import google_search
 from google.adk.agents import Agent, SequentialAgent
+from google.adk.agents.run_config import RunConfig
+from google.adk.runners import Runner
+from google.adk.sessions import InMemorySessionService
 from dotenv import load_dotenv
+from google.genai import types
 
 load_dotenv()
 
@@ -39,3 +43,37 @@ find_and_navigate_agent = SequentialAgent(
 )
 
 root_agent = find_and_navigate_agent
+
+
+def main() -> None:
+    prompt = "I am in Taipei Main Station and want a great sushi place, then give me directions to get there."
+    runner = Runner(
+        agent=root_agent,
+        session_service=InMemorySessionService(),
+        app_name="b_sequential_agent_example",
+        auto_create_session=True,
+    )
+    content = types.Content(role="user", parts=[types.Part.from_text(text=prompt)])
+    result_text = ""
+
+    for event in runner.run(
+        user_id="example-user",
+        session_id="b-sequential-session",
+        new_message=content,
+        run_config=RunConfig(),
+    ):
+        if not event.is_final_response() or not event.content or not event.content.parts:
+            continue
+        for part in event.content.parts:
+            text = getattr(part, "text", None)
+            if isinstance(text, str) and text.strip():
+                result_text = text.strip()
+
+    if not result_text:
+        raise RuntimeError("No response text returned from agent")
+
+    print(result_text)
+
+
+if __name__ == "__main__":
+    main()

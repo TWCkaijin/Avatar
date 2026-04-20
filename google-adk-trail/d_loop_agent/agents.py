@@ -1,6 +1,10 @@
 from google.adk.tools import google_search, ToolContext
 from google.adk.agents import Agent, LoopAgent, SequentialAgent
+from google.adk.agents.run_config import RunConfig
+from google.adk.runners import Runner
+from google.adk.sessions import InMemorySessionService
 from dotenv import load_dotenv
+from google.genai import types
 
 load_dotenv()
 
@@ -72,3 +76,37 @@ iterative_planner_agent = SequentialAgent(
 print("🤖 Agent team updated with an iterative LoopAgent workflow!")
 
 root_agent = iterative_planner_agent
+
+
+def main() -> None:
+    prompt = "Plan a museum + dinner date in Taipei with short travel time between the two places."
+    runner = Runner(
+        agent=root_agent,
+        session_service=InMemorySessionService(),
+        app_name="d_loop_agent_example",
+        auto_create_session=True,
+    )
+    content = types.Content(role="user", parts=[types.Part.from_text(text=prompt)])
+    result_text = ""
+
+    for event in runner.run(
+        user_id="example-user",
+        session_id="d-loop-session",
+        new_message=content,
+        run_config=RunConfig(),
+    ):
+        if not event.is_final_response() or not event.content or not event.content.parts:
+            continue
+        for part in event.content.parts:
+            text = getattr(part, "text", None)
+            if isinstance(text, str) and text.strip():
+                result_text = text.strip()
+
+    if not result_text:
+        raise RuntimeError("No response text returned from agent")
+
+    print(result_text)
+
+
+if __name__ == "__main__":
+    main()
