@@ -30,7 +30,6 @@ Defined in `Avatar/app/agent.py`:
 - `MAX_FILE_BYTES = 512 * 1024`
 - `MAX_LOCAL_SKILLS = 20`
 - `SKILL_EXEC_TIMEOUT_SECONDS` default `20`
-- `STRICT_SENSITIVE_WRITE_GUARD` default `false`
 
 ## Canonical Agent Graph
 
@@ -93,7 +92,6 @@ Runtime integration in `Avatar/app/main.py::_invoke_agent`:
 - Session service: `InMemorySessionService`.
 - Memory service: `InMemoryMemoryService`.
 - `RunConfig.custom_metadata` must include:
-  - `allow_sensitive_writes`
   - `context_strategy = "adk_tool_first"`
 
 Final response selection policy:
@@ -209,13 +207,11 @@ Tool failure policy in final response:
 
 - Atomic replace write.
 - Returns `Success` on success.
-- Blocks identity/soul writes when strict guard is enabled without approval.
 
 ### `append_file(path: str, content: str) -> str`
 
 - Newline-normalized append.
 - Returns `Success` on success.
-- Same strict-guard behavior as `write_file`.
 
 ### `create_file(path: str, content: str) -> str`
 
@@ -273,7 +269,7 @@ The following route guidance is mandatory in responder/memory-maintenance logic:
 - Allowed path root: effective `DATA_DIR` only.
 - Reject path traversal and out-of-scope absolute paths.
 - Use structured tool-execution logs for both request and response phases.
-- Sensitive files (`identity.md`, `soul.md`) are blocked only in strict mode without approval.
+- Do not add extra per-file write blocking inside `DATA_DIR`; in-scope writes are allowed.
 
 ## Runtime Context Contract
 
@@ -283,7 +279,6 @@ The following route guidance is mandatory in responder/memory-maintenance logic:
 - `runtime_flags`:
   - `user_id`
   - `session_id`
-  - `allow_sensitive_writes`
 
 ## Error Contract
 
@@ -330,6 +325,6 @@ File: `Avatar/adk_agents/avatar/agent.py`
 
 - Agent graph and tool matrix match this document and test assertions.
 - All LLM nodes share required generate-content config.
-- Tool guardrails and strict-write behavior are enforced.
+- Tool guardrails enforce data-root path scope and allow in-scope file writes.
 - Local skill lifecycle works end-to-end.
 - Route/tool logs provide deterministic auditability.

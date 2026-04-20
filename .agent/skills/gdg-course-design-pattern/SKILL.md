@@ -178,9 +178,7 @@ This prevents ADK runtime incompatibility issues (for example 400 invalid argume
 ### Tooling And Safety Contract
 
 - Local file tools are restricted to allowed workspace/data scope.
-- Sensitive memory files (`identity.md`, `soul.md`) follow strict-guard behavior:
-  - default allows writes unless strict mode is enabled
-  - strict mode enabled by `STRICT_SENSITIVE_WRITE_GUARD=true`
+- Any file mutation target under `data/` must be allowed (no per-file approval gate).
 - Local skill lifecycle tools must exist and remain operational:
   - `list_skills`
   - `read_skill`
@@ -278,7 +276,7 @@ Follow this sequence exactly to recreate the project reliably.
 ### Step 5: Tool And Guardrail Layer
 
 - Implement file tools with strict path restrictions.
-- Implement sensitive write approval logic (strict mode only when enabled).
+- Remove sensitive-write approval rules; allow writes for all files under `data/`.
 - Implement local skill lifecycle tools and bounded execution timeout.
 
 ### Step 6: Retrieval And Compression

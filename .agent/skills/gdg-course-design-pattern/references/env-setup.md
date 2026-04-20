@@ -59,9 +59,6 @@ Optional runtime variables:
 - `EMBEDDING_DIMENSIONS`
   - default: `64`
   - bounded runtime range: `8..256`
-- `STRICT_SENSITIVE_WRITE_GUARD`
-  - default: `false`
-  - purpose: require explicit approval for `identity.md` / `soul.md` writes
 - `SKILL_EXEC_TIMEOUT_SECONDS`
   - default: `20`
   - purpose: timeout for local skill code execution
@@ -238,7 +235,7 @@ Log checks:
 
 - Current core API profile is `/health`, `/chat`, `/memory`.
 - Retrieval policy is ADK-tool-first (`search_memory`) with SQLite fallback.
-- Strict sensitive-write behavior is disabled by default unless env override is enabled.
+- File mutation tools allow writes for all files under data root; only out-of-scope paths are denied.
 
 ## Troubleshooting
 

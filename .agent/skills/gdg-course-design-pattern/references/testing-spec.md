@@ -54,7 +54,6 @@ Mandatory assertions:
 Mandatory behavior checks:
 
 - `/chat` persists user and assistant messages.
-- `/chat` propagates sensitive-write approval resolution.
 - `/chat` uses ADK retrieval hits when present.
 - `/chat` falls back to SQLite retrieval when ADK retrieval not invoked.
 
@@ -79,8 +78,8 @@ Failure-path assertions:
 Mandatory coverage:
 
 - `read_file`/`write_file`/`append_file`/`create_file` path and status behavior.
-- strict mode sensitive-write protection for identity/soul.
-- default mode allows identity/soul writes.
+- writes to all files under data root are allowed.
+- path-outside-data writes are denied.
 - `list_skills`/`read_skill`/`create_skill`/`execute_skill` end-to-end.
 - local skill registry appears in root system instruction.
 

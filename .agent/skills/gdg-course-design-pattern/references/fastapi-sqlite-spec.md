@@ -81,10 +81,8 @@ Request schema:
   "session_id": "string (optional)",
   "metadata": {
     "locale": "zh-TW",
-    "channel": "web",
-    "allow_sensitive_writes": "true"
-  },
-  "allow_sensitive_writes": false
+    "channel": "web"
+  }
 }
 ```
 
@@ -156,7 +154,7 @@ Behavior:
 ## Request Lifecycle: `POST /chat`
 
 1. Validate request payload and message size.
-2. Resolve `session_id` and sensitive-write approval.
+2. Resolve `session_id`.
 3. Open SQLite connection and start explicit transaction (`BEGIN`).
 4. Ensure session row exists/upserts `updated_at`.
 5. Persist user message and embedding.
@@ -267,16 +265,6 @@ Compression behavior:
 - Insert compression row
 - Mark selected messages as `compressed=1`
 - Persist summary as system message with embedding (`source_type=summary`, `source_ref=compression:<id>`)
-
-## Sensitive Write Approval Resolution
-
-Input sources considered (priority order):
-
-1. request field `allow_sensitive_writes`
-2. explicit natural-language write intent targeting identity/soul
-3. `metadata.allow_sensitive_writes` (truthy parsing)
-
-This flag is forwarded into ADK runtime metadata and tool runtime context.
 
 ## Observability Contract
 

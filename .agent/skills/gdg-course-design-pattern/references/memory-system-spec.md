@@ -9,7 +9,7 @@ Covers:
 - Required memory files under `Avatar/data/`.
 - Memory file roles and invariants.
 - Read and write precedence.
-- Sensitive-write governance.
+- Data-path write policy.
 - Local skill registry contract under `Avatar/data/skills/`.
 
 Does not define API envelopes; see `fastapi-sqlite-spec.md`.
@@ -50,7 +50,6 @@ Hard invariants:
 
 - Must include role-level constraints.
 - Takes highest precedence during instruction composition.
-- In strict mode, write requires explicit approval.
 
 Recommended sections:
 
@@ -70,7 +69,6 @@ Hard invariants:
 
 - Must not override identity hard constraints.
 - Changes should be infrequent and intentional.
-- In strict mode, write requires explicit approval.
 
 Recommended sections:
 
@@ -159,34 +157,20 @@ When user intent is ambiguous, route writes by purpose:
 
 Do not default all writes to `memory.md`.
 
-## Sensitive Write Governance
+## Write Policy
 
-Sensitive files:
+Write behavior for file mutation tools:
 
-- `identity.md`
-- `soul.md`
-
-Default behavior:
-
-- writable by default
-
-Strict mode behavior:
-
-- enabled by `STRICT_SENSITIVE_WRITE_GUARD=true`
-- writes require explicit approval
-
-Approval sources accepted by runtime:
-
-- request `allow_sensitive_writes=true`
-- metadata `allow_sensitive_writes=true`
-- explicit natural-language write intent targeting identity/soul
+- Any file under the effective data root (`Avatar/data/` or `AVATAR_DATA_DIR`) is writable.
+- No per-file approval gate is applied to `identity.md` or `soul.md`.
+- Paths outside data root are denied.
 
 ## Safe Update Algorithm
 
 1. Resolve and validate target path under data root.
 2. Read current content when diff-aware update is needed.
 3. Validate intent against file-purpose routing.
-4. Check strict sensitive-write policy.
+4. Ensure target path remains inside data root.
 5. Apply update via tool contract.
 6. Verify tool result (`Success`) before claiming completion.
 
@@ -256,7 +240,7 @@ Suggested operational limits:
 ## Acceptance Criteria
 
 - Required files and `skills/` directory exist and are readable.
-- Identity/soul strict-write policy behaves correctly in strict mode.
+- File mutation tools allow writes for all in-scope data files.
 - Purpose-based routing is reflected in responder/memory-maintenance behavior.
 - Local skill lifecycle functions (create/list/read/execute) work within guardrails.
 - Memory contracts remain consistent with ADK instruction composition.

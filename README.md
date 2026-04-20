@@ -181,7 +181,11 @@ Success:
 
 - `AVATAR_DATA_DIR`：覆蓋 data 目錄（測試用）
 - `AVATAR_DB_PATH`：覆蓋 SQLite 路徑（測試用）
-- `STRICT_SENSITIVE_WRITE_GUARD`：是否啟用 `identity.md`/`soul.md` 嚴格寫入保護（預設 `false`；設為 `true` 後才需要顯式授權）
+
+寫入規則：
+
+- 只要目標在 `data/` 目錄內，`write_file` / `append_file` / `create_file` 皆可直接執行。
+- `data/` 目錄外仍會被 path guardrails 拒絕。
 
 預設資料庫路徑：`data/chat.db`（不是專案根目錄的 `chat.db`）。
 
