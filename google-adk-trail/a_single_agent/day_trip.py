@@ -9,14 +9,11 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 load_dotenv(PROJECT_ROOT / ".env")
-
-SEARCH_TOOL_CONFIG = types.GenerateContentConfig.model_validate(
-    {"tool_config": {"include_server_side_tool_invocations": True}}
-)
+MODEL="gemini-2.5-flash"
 
 root_agent = Agent(
     name="planner_agent",
-    model="gemini-2.5-flash",
+    model=MODEL,
     description="Agent tasked with generating creative and fun dating plan suggestions",
     instruction="""
         You are a specialized AI assistant tasked with generating creative and fun plan suggestions.
@@ -37,13 +34,12 @@ root_agent = Agent(
         RETURN PLAN in MARKDOWN FORMAT
     """,
     tools=[google_search],
-    generate_content_config=SEARCH_TOOL_CONFIG,
 )
 
 
 def main() -> None:
     prompt = (
-        "For the upcoming weekend from 2026-04-25 to 2026-04-26 in Taipei, Taiwan, "
+        "For the upcoming weekend from 2026-05-01 to 2026-05-02 in Kaohsiung, Taiwan, "
         "generate one distinct dating plan with max 3 activities, tailored to interests: "
         "outdoors, foodie, live music. For each place, include name, latitude, longitude, "
         "and a short description. Return in markdown."
