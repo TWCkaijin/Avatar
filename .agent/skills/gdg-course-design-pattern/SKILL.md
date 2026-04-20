@@ -9,7 +9,7 @@ This skill defines the Local Agent OS architecture for the Avatar project under 
 
 ## Scope And Boundaries
 
-- This skill applies to Avatar/ runtime and data flow design, plus documentation updates in .claude/skills/gdg-course-design-pattern.
+- This skill applies to Avatar/ runtime and data flow design, plus documentation updates in .agent/skills/gdg-course-design-pattern.
 - Changes must stay within the Local Agent OS pattern and avoid reintroducing Firebase services.
 - When requirements are ambiguous, prefer explicit contracts over implicit behavior.
 - Keep documentation synchronized with the current implementation in Avatar/app/, Avatar/adk_agents/, Avatar/data/, and Avatar/test/.
