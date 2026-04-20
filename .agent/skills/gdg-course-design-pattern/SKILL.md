@@ -9,7 +9,7 @@ This skill defines the Local Agent OS architecture for the Avatar project under 
 
 ## Scope And Boundaries
 
-- This skill applies to Avatar/ runtime and data flow design, plus documentation updates in .agent/skills/gdg-course-design-pattern.
+- This skill applies to Avatar/ runtime and data flow design, plus documentation updates in .claude/skills/gdg-course-design-pattern.
 - Changes must stay within the Local Agent OS pattern and avoid reintroducing Firebase services.
 - When requirements are ambiguous, prefer explicit contracts over implicit behavior.
 - Keep documentation synchronized with the current implementation in Avatar/app/, Avatar/adk_agents/, Avatar/data/, and Avatar/test/.
@@ -62,6 +62,21 @@ This skill defines the Local Agent OS architecture for the Avatar project under 
 - **Markdown Memory**: Local files (identity.md, soul.md, startup.md, master.md, memory.md) acting as context and durable memory.
 - **Google ADK**: Root coordinator + orchestrator + specialist LLM-as-tool graph, with native ADK adapter at Avatar/adk_agents/avatar/agent.py (official docs: https://adk.dev/).
 - **Model + Retrieval**: Default agent model is gemini-3-flash-preview; retrieval uses local deterministic hash embeddings (EMBEDDING_MODEL_NAME=local-hash-embedding-v1 by default).
+
+## Critical Implementation Notes
+
+- Runtime source of truth is under `Avatar/Avatar/`; validate docs against `Avatar/Avatar/app/*.py` and `Avatar/Avatar/test/*.py`.
+- All `LlmAgent` nodes must share `generate_content_config` with:
+  - `automatic_function_calling.disable=true`
+  - `tool_config.include_server_side_tool_invocations=true`
+  This is required to avoid ADK runtime `400 INVALID_ARGUMENT` with built-in tools.
+- Root instruction composition currently inlines `identity.md`, `soul.md`, and `master.md`; `startup.md` is treated as runtime/session guidance consumed through tool flow when needed.
+- Local skill lifecycle tools (`list_skills`, `read_skill`, `create_skill`, `execute_skill`) are production contracts and must remain documented in ADK/tool specs.
+- Keep tool observability schema stable (`tool_execution`, `tool_activity`, `route_decision`, `chat_persisted`) when introducing new tools or categories.
+- Environment key compatibility rule:
+  - prefer `GOOGLE_API_KEY`
+  - allow `GEMINI_API_KEY` fallback
+  - if both are set, `GOOGLE_API_KEY` takes precedence.
 
 ## Component Responsibilities
 

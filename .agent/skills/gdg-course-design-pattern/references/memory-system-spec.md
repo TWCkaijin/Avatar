@@ -11,8 +11,28 @@ This document defines the normative markdown memory contracts for the Local Agen
   - `startup.md`
   - `master.md`
   - `memory.md`
+- Required directory:
+  - `skills/` (local skill registry and executable skill code)
 
 All files must be UTF-8 text and line-ending consistent.
+
+## Local Skills Contract (`Avatar/data/skills/`)
+
+Purpose:
+
+- Stores agent-generated reusable skill definitions and optional executable code.
+
+Layout:
+
+- `Avatar/data/skills/<skill_name>/SKILL.md` (required per registered skill)
+- `Avatar/data/skills/<skill_name>/run.py` (optional executable entrypoint)
+
+Invariants:
+
+- `skill_name` must match `[A-Za-z0-9][A-Za-z0-9_-]{0,63}`.
+- Skill definitions must stay under `Avatar/data/skills/`.
+- Executable skill code may run only from approved skill entrypoints under `Avatar/data/skills/<skill_name>/`.
+- Skill execution input must be JSON-compatible and execution must be timeout bounded.
 
 ## File Roles And Invariants
 
@@ -126,9 +146,9 @@ Effective runtime order:
 1. Root instruction loads `identity.md` first.
 2. Root instruction then loads `soul.md`.
 3. Root instruction then loads `master.md`.
-4. Specialist agents load additional durable context through ADK `load_memory`.
-5. Retrieval context is added via `search_memory` hits.
-6. `startup.md` is treated as runtime/session guidance and is consumed through tool flow when needed.
+4. Root instruction includes local skill registry context and memory-purpose routing guidance.
+5. `startup.md` is treated as runtime/session guidance and is consumed through tool flow when needed (for example via `read_file`, `load_memory`, or runtime hints).
+6. Specialist agents load additional durable context through ADK `load_memory` and retrieval context via `search_memory` hits.
 
 ## Write Policy
 

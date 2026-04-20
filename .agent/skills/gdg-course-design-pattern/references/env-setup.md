@@ -18,7 +18,13 @@ This document defines the standard local setup for developing and running the Av
 
 ## Required Environment Variables
 
-- `GEMINI_API_KEY`: API key for generation and embeddings
+- `GOOGLE_API_KEY` or `GEMINI_API_KEY`: API key for generation and embeddings
+
+Notes:
+
+- Prefer `GOOGLE_API_KEY` to match `.env.example`.
+- `GEMINI_API_KEY` is accepted for compatibility.
+- If both are set, runtime uses `GOOGLE_API_KEY`.
 
 Optional:
 
@@ -27,6 +33,7 @@ Optional:
 - `EMBEDDING_MODEL_NAME`: embedding model label persisted to DB metadata (default local-hash-embedding-v1)
 - `EMBEDDING_DIMENSIONS`: embedding dimensions (8 to 256, default 64)
 - `STRICT_SENSITIVE_WRITE_GUARD`: when true, identity/soul writes require explicit approval
+- `SKILL_EXEC_TIMEOUT_SECONDS`: timeout (seconds) for executing local skill code (default 20)
 - `CORS_ALLOW_ORIGINS`: comma-separated CORS origins (default *)
 - `CORS_ALLOW_CREDENTIALS`: CORS credentials flag (true or false, default false)
 
@@ -69,6 +76,10 @@ Note:
       startup.md
       master.md
       memory.md
+      skills/
+        example_skill/
+          SKILL.md
+          run.py
     test/
       test_agent.py
       test_main.py
@@ -78,9 +89,10 @@ Note:
 
 1. From repository root, create and activate a virtual environment (or use uv).
 2. Install dependencies from requirements.txt or pyproject.toml.
-3. Create .env and set GEMINI_API_KEY.
+3. Copy `.env.example` to `.env` at repository root, then set `GOOGLE_API_KEY` (or `GEMINI_API_KEY`).
 4. Ensure Avatar/data memory files exist (identity.md, soul.md, startup.md, master.md, memory.md).
-5. Start API server with auto reload.
+5. Ensure Avatar/data/skills exists for local skill registry and execution.
+6. Start API server with auto reload.
 
 Recommended install commands from repository root:
 
@@ -90,7 +102,14 @@ uv sync
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+cp .env.example .env
 ```
+
+## Dotenv Resolution Notes
+
+- Canonical `.env` location is repository root (`<repo-root>/.env`).
+- `google-adk-trail/*` scripts explicitly resolve and load root `.env`.
+- FastAPI app uses `load_dotenv()` discovery; recommended startup commands in this document keep behavior consistent.
 
 ## Runtime Profiles
 
@@ -142,7 +161,7 @@ PYTHONPATH=. uv run pytest Avatar/test/test_agent.py Avatar/test/test_main.py -q
 
 ## Troubleshooting
 
-- Missing API key: verify `.env` load path and variable name.
+- Missing API key: verify `.env` load path and variable names (`GOOGLE_API_KEY` / `GEMINI_API_KEY`).
 - Import errors: confirm virtual environment and installed dependencies.
 - ADK loader import error (`No module named 'Avatar'`): verify adapter import path uses `from app.agent import create_root_agent` and run ADK with `PYTHONPATH=adk_agents` from Avatar/.
 - SQLite lock errors: ensure short-lived connections and proper transaction scope.

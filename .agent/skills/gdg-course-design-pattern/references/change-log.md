@@ -163,3 +163,52 @@
 - Files: .agent/skills/gdg-course-design-pattern/SKILL.md, .agent/skills/gdg-course-design-pattern/references/env-setup.md, .agent/skills/gdg-course-design-pattern/references/fastapi-sqlite-spec.md, .agent/skills/gdg-course-design-pattern/references/adk-spec.md, .agent/skills/gdg-course-design-pattern/references/memory-system-spec.md, .agent/skills/gdg-course-design-pattern/references/testing-spec.md, .agent/skills/gdg-course-design-pattern/references/change-log.md
 - Tests Added/Updated: No code tests added (documentation/spec synchronization only).
 - Test Result: N/A
+
+### Entry 23
+
+- Summary: Added reusable flow template tools to `ConversationOrchestrator` (`SequentialFlowTemplate`, `ParallelFlowTemplate`, `LoopFlowTemplate`) so the orchestrator can dynamically compose ordered, branch, and loop-style sub-flows with parameterized contracts.
+- Files: Avatar/app/agent.py, Avatar/test/test_agent.py, .claude/skills/gdg-course-design-pattern/references/adk-spec.md, .claude/skills/gdg-course-design-pattern/references/testing-spec.md, .claude/skills/gdg-course-design-pattern/references/change-log.md
+- Tests Added/Updated: Updated `test_agent_graph_shape` to assert template-tool registration and template instruction contracts; reran targeted and full pytest suites.
+- Test Result: PASS (targeted: 5 passed with `PYTHONPATH=. .venv/bin/python -m pytest Avatar/test/test_agent.py -q`; full suite: 21 passed with `PYTHONPATH=. .venv/bin/python -m pytest -q`)
+
+### Entry 24
+
+- Summary: Added local skill lifecycle support so the agent can create skills in `Avatar/data/skills`, auto-load skill registry context into root instruction, and execute skill code through bounded runtime tool permissions.
+- Files: Avatar/app/agent.py, Avatar/app/main.py, Avatar/test/test_agent.py, .claude/skills/gdg-course-design-pattern/references/adk-spec.md, .claude/skills/gdg-course-design-pattern/references/memory-system-spec.md, .claude/skills/gdg-course-design-pattern/references/env-setup.md, .claude/skills/gdg-course-design-pattern/references/testing-spec.md, .claude/skills/gdg-course-design-pattern/references/change-log.md
+- Tests Added/Updated: Extended `test_agent_graph_shape` with skill-tool assertions, added `test_skill_tools_create_list_read_and_execute`, and added `test_system_instruction_loads_local_skill_registry`; reran targeted and full pytest suites.
+- Test Result: PASS (targeted: 7 passed with `PYTHONPATH=. .venv/bin/python -m pytest Avatar/test/test_agent.py -q`; full suite: 23 passed with `PYTHONPATH=. .venv/bin/python -m pytest -q`)
+
+### Entry 25
+
+- Summary: Enabled `google_search` as a default tool on all LlmAgent nodes (root coordinator, orchestrator, specialists, templates, and memory maintenance) so every agent can perform web lookup by default.
+- Files: Avatar/app/agent.py, Avatar/test/test_agent.py, .claude/skills/gdg-course-design-pattern/references/adk-spec.md, .claude/skills/gdg-course-design-pattern/references/testing-spec.md, .claude/skills/gdg-course-design-pattern/references/change-log.md
+- Tests Added/Updated: Updated `test_agent_graph_shape` assertions to verify default `google_search` registration across all agent nodes; reran targeted and full pytest suites.
+- Test Result: PASS (targeted: 7 passed with `PYTHONPATH=. .venv/bin/python -m pytest Avatar/test/test_agent.py -q`; full suite: 23 passed with `PYTHONPATH=. .venv/bin/python -m pytest -q`)
+
+### Entry 26
+
+- Summary: Fixed `google.genai.errors.ClientError: 400 INVALID_ARGUMENT` in `google-adk-trail` examples by enabling `tool_config.include_server_side_tool_invocations` for all agents using built-in `google_search` with function calling.
+- Files: google-adk-trail/a_single_agent/day_trip.py, google-adk-trail/b_sequential_agent/agents.py, google-adk-trail/c_parallel_agent/agents.py, google-adk-trail/d_loop_agent/agents.py, google-adk-trail/e_agent_as_tool/agents.py
+- Tests Added/Updated: No new tests; ran compile validation for all modified files and executed pytest.
+- Test Result: PARTIAL (compileall passed for all 5 modified files; pytest currently fails in existing test environment with `ModuleNotFoundError: No module named 'Avatar'` in `Avatar/test/test_agent.py` and `Avatar/test/test_main.py`)
+
+### Entry 27
+
+- Summary: Fixed ADK Web runtime `400 INVALID_ARGUMENT` for the main Avatar agent graph by enabling `tool_config.include_server_side_tool_invocations` in a shared `GenerateContentConfig`, applying it to all `LlmAgent` nodes (`AvatarCoordinator`, `ConversationOrchestrator`, specialists, and flow templates), and explicitly disabling AFC (`automatic_function_calling.disable=true`) to avoid mixed-tool compatibility warnings.
+- Files: Avatar/app/agent.py, Avatar/test/test_agent.py, .claude/skills/gdg-course-design-pattern/references/change-log.md
+- Tests Added/Updated: Added `test_all_llm_agents_share_generate_content_config` to enforce shared config wiring (`automatic_function_calling.disable` and `include_server_side_tool_invocations`) across the full agent graph; reran targeted plus full pytest.
+- Test Result: PASS (smoke check: `afc_disable=True` and `include_server_side=True`; targeted: 24 passed with `PYTHONPATH=. .venv/bin/python -m pytest Avatar/test/test_agent.py Avatar/test/test_main.py -q`; full suite: 24 passed with `PYTHONPATH=. .venv/bin/python -m pytest -q`)
+
+### Entry 28
+
+- Summary: Standardized dotenv loading so all `google-adk-trail` scripts default to the repository root `.env` regardless of current working directory.
+- Files: google-adk-trail/a_single_agent/day_trip.py, google-adk-trail/b_sequential_agent/agents.py, google-adk-trail/c_parallel_agent/agents.py, google-adk-trail/d_loop_agent/agents.py, google-adk-trail/e_agent_as_tool/agents.py, .claude/skills/gdg-course-design-pattern/references/change-log.md
+- Tests Added/Updated: No new tests; added syntax validation for modified scripts and reran full pytest regression suite.
+- Test Result: PASS (compileall: 5 files passed; full suite: 24 passed with `PYTHONPATH=. .venv/bin/python -m pytest -q`)
+
+### Entry 29
+
+- Summary: Aligned `gdg-course-design-pattern` documentation with the current runtime architecture, added critical implementation cautions (ADK generate-content config, startup guidance flow, env key precedence, observability categories), and updated README activation/architecture guides.
+- Files: .claude/skills/gdg-course-design-pattern/SKILL.md, .claude/skills/gdg-course-design-pattern/references/adk-spec.md, .claude/skills/gdg-course-design-pattern/references/env-setup.md, .claude/skills/gdg-course-design-pattern/references/memory-system-spec.md, .claude/skills/gdg-course-design-pattern/references/fastapi-sqlite-spec.md, README.md, Avatar/README.md, .claude/skills/gdg-course-design-pattern/references/change-log.md
+- Tests Added/Updated: No new tests (documentation sync only); executed full regression suite for safety.
+- Test Result: PASS (full suite: 24 passed with `PYTHONPATH=. .venv/bin/python -m pytest -q`)

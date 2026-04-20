@@ -38,12 +38,18 @@ This document defines quality gates and verification strategy for Local Agent OS
 - Agent initializes with required instruction layers.
 - Tool invocation failures are surfaced without fabricated output.
 - Root coordinator has expected sub-agent graph.
+- All LlmAgent nodes register `google_search` as a default tool.
 - Workflow orchestrator supports adaptive specialist selection and emits route logs (`route_decision`).
+- Workflow orchestrator registers reusable flow template tools (`SequentialFlowTemplate`, `ParallelFlowTemplate`, `LoopFlowTemplate`).
+- Flow template tools expose explicit control parameters (`agent_a`/`agent_b` or `flow_agent` + `stop_condition` + `max_iterations`) in their instruction contracts.
+- ResponseComposer registers local skill tools (`list_skills`, `read_skill`, `create_skill`, `execute_skill`).
+- Local skill tools can create/list/read/execute skills from `Avatar/data/skills` within path/timeout guards.
 - File mutation and retrieval tools emit structured request/response logs (`tool_execution`).
 
 ### Memory Layer
 
 - Required markdown files are loaded in defined priority order.
+- Local skill registry from `Avatar/data/skills` is loaded into system instruction context.
 - Reserved file write protections are enforced in strict mode and allowed by default otherwise.
 - Tool logging includes request/response phase records for read/write/retrieval calls.
 
@@ -102,4 +108,4 @@ Current expectation:
 - API, ADK, memory, and database components each have explicit test coverage.
 - Error envelopes are tested across representative failure modes.
 - Compression and retrieval logic are verifiable in repeatable test scenarios.
-- Multi-agent flow (coordinator -> adaptive orchestrator -> specialists) is validated by route-selection and final-response integration tests.
+- Multi-agent flow (coordinator -> adaptive orchestrator -> specialists/templates) is validated by route-selection and final-response integration tests.

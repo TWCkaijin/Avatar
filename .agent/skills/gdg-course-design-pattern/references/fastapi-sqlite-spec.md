@@ -224,6 +224,12 @@ Indexes:
 - Tool request/response activity is logged as `tool_execution=%s` and `tool_activity=%s`.
 - Successful commits emit `chat_persisted=%s` with effective `db_path`, `session_id`, and message ids.
 
+### Tool Log Categories (Current Implementation)
+
+- `tool_execution` categories include: `file_read`, `file_mutation`, `memory_retrieval`, `skill_registry`, `skill_mutation`, `skill_execution`.
+- `tool_activity` categories include: `file_mutation`, `memory_retrieval`, `terminal_operation`.
+- Tool logs should include request/response phase and status (`request`, `success`, `denied`, `error`) with relevant metadata.
+
 ## Acceptance Criteria
 
 - API responses conform to contract for success and error cases.
