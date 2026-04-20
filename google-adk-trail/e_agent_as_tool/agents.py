@@ -1,24 +1,25 @@
 from google.adk.tools import google_search
-from google.adk.tools.agent_tool import AgentTool 
-from google.adk.agents.invocation_context import InvocationContext
-from google.adk.events import Event
-from google.adk.agents import Agent, ParallelAgent, SequentialAgent, LlmAgent, BaseAgent
+from google.adk.tools.agent_tool import AgentTool
+from google.adk.agents import LlmAgent
 from google.adk.agents.run_config import RunConfig
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from dotenv import load_dotenv
 from google.genai import types
-from typing_extensions import override
-import logging
-from typing import AsyncGenerator
+from pathlib import Path
 
-load_dotenv()
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+load_dotenv(PROJECT_ROOT / ".env")
+
+SEARCH_TOOL_CONFIG = types.GenerateContentConfig.model_validate(
+    {"tool_config": {"include_server_side_tool_invocations": True}}
+)
 
 
 # --- 1. Define the Specialist "Tool" Agents ---
 # These are the expert agents that our main agent will use as tools.
 
-location_scout_agent = Agent(
+location_scout_agent = LlmAgent(
     name="LocationScoutAgent",
     model="gemini-2.5-flash",
     tools=[google_search],
@@ -28,9 +29,10 @@ location_scout_agent = Agent(
     Example Request: "a museum about technology"
     Example Output: "The Computer History Museum"
     """,
+    generate_content_config=SEARCH_TOOL_CONFIG,
 )
 
-logistics_validator_agent = Agent(
+logistics_validator_agent = LlmAgent(
     name="LogisticsValidatorAgent",
     model="gemini-2.5-flash",
     tools=[google_search],
@@ -40,12 +42,13 @@ logistics_validator_agent = Agent(
     - If the request has two locations, calculate the driving travel time between them and output only the time (e.g., '15 minutes').
     - If the request has one location, find its typical operating hours for a weekday and output only the hours (e.g., '9:00 AM - 5:00 PM').
     """,
+    generate_content_config=SEARCH_TOOL_CONFIG,
 )
 
 # --- 2. Define the Main "Architect" Agent ---
 # This agent orchestrates the tool agents to build a plan conversationally.
 
-trip_architect_agent = Agent(
+trip_architect_agent = LlmAgent(
     name="TripArchitectAgent",
     model="gemini-2.5-flash",
     instruction="""

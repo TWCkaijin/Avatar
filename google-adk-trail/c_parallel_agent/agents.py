@@ -5,21 +5,29 @@ from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from dotenv import load_dotenv
 from google.genai import types
+from pathlib import Path
 
-load_dotenv()
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+load_dotenv(PROJECT_ROOT / ".env")
+
+SEARCH_TOOL_CONFIG = types.GenerateContentConfig.model_validate(
+    {"tool_config": {"include_server_side_tool_invocations": True}}
+)
 
 # Specialist Agent 1
 museum_finder_agent = Agent(
     name="museum_finder_agent", model="gemini-2.5-flash", tools=[google_search],
     instruction="You are a museum expert. Find the best museum based on the user's query. Output only the museum's name.",
-    output_key="museum_result"
+    output_key="museum_result",
+    generate_content_config=SEARCH_TOOL_CONFIG,
 )
 
 # Specialist Agent 2
 concert_finder_agent = Agent(
     name="concert_finder_agent", model="gemini-2.5-flash", tools=[google_search],
     instruction="You are an events guide. Find a concert based on the user's query. Output only the concert name and artist.",
-    output_key="concert_result"
+    output_key="concert_result",
+    generate_content_config=SEARCH_TOOL_CONFIG,
 )
 
 # We can reuse our foodie_agent for the third parallel task!
@@ -34,7 +42,8 @@ restaurant_finder_agent = Agent(
     When you recommend a place, you must output *only* the name of the establishment.
     For example, if the best sushi is at 'Jin Sho', you should output only: Jin Sho
     """,
-    output_key="restaurant_result" # Set the correct output key for this workflow
+    output_key="restaurant_result",  # Set the correct output key for this workflow
+    generate_content_config=SEARCH_TOOL_CONFIG,
 )
 
 

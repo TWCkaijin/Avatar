@@ -5,8 +5,14 @@ from google.adk.sessions import InMemorySessionService
 from google.adk.tools import google_search
 from dotenv import load_dotenv
 from google.genai import types
+from pathlib import Path
 
-load_dotenv()
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+load_dotenv(PROJECT_ROOT / ".env")
+
+SEARCH_TOOL_CONFIG = types.GenerateContentConfig.model_validate(
+    {"tool_config": {"include_server_side_tool_invocations": True}}
+)
 
 root_agent = Agent(
     name="planner_agent",
@@ -30,7 +36,8 @@ root_agent = Agent(
 
         RETURN PLAN in MARKDOWN FORMAT
     """,
-    tools=[google_search]
+    tools=[google_search],
+    generate_content_config=SEARCH_TOOL_CONFIG,
 )
 
 

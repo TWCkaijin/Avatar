@@ -5,8 +5,14 @@ from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from dotenv import load_dotenv
 from google.genai import types
+from pathlib import Path
 
-load_dotenv()
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+load_dotenv(PROJECT_ROOT / ".env")
+
+SEARCH_TOOL_CONFIG = types.GenerateContentConfig.model_validate(
+    {"tool_config": {"include_server_side_tool_invocations": True}}
+)
 
 # A tool to signal that the loop should terminate
 COMPLETION_PHRASE = "The plan is feasible and meets all constraints."
@@ -22,7 +28,8 @@ planner_agent = Agent(
     model="gemini-2.5-flash", 
     tools=[google_search],
     instruction="You are a trip planner. Based on the user's request, propose a single activity and a single restaurant. Output only the names, like: 'Activity: Exploratorium, Restaurant: La Mar'.",
-    output_key="current_plan"
+    output_key="current_plan",
+    generate_content_config=SEARCH_TOOL_CONFIG,
 )
 
 # Agent 2 (in loop): Critiques the plan
@@ -33,7 +40,8 @@ critic_agent = Agent(
     Use your tools to check the travel time between the two locations.
     IF the travel time is over 45 minutes, provide a critique, like: 'This plan is inefficient. Find a restaurant closer to the activity.'
     ELSE, respond with the exact phrase: '{COMPLETION_PHRASE}'""",
-    output_key="criticism"
+    output_key="criticism",
+    generate_content_config=SEARCH_TOOL_CONFIG,
 )
 
 # Agent 3 (in loop): Refines the plan
@@ -46,7 +54,8 @@ refiner_agent = Agent(
     Critique: {{criticism}}
     IF the critique is '{COMPLETION_PHRASE}', you MUST respond with the exact phrase '{COMPLETION_PHRASE}'.
     ELSE, generate a NEW plan that addresses the critique. Output only the new plan names, like: 'Activity: de Young Museum, Restaurant: Nopa'.""",
-    output_key="current_plan"
+    output_key="current_plan",
+    generate_content_config=SEARCH_TOOL_CONFIG,
 )
 
 # Agent 4 (in loop): Exits the loop if the plan is good

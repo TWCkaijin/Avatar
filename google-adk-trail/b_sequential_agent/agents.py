@@ -6,8 +6,14 @@ from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from dotenv import load_dotenv
 from google.genai import types
+from pathlib import Path
 
-load_dotenv()
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+load_dotenv(PROJECT_ROOT / ".env")
+
+SEARCH_TOOL_CONFIG = types.GenerateContentConfig.model_validate(
+    {"tool_config": {"include_server_side_tool_invocations": True}}
+)
 
 # Note the new `output_key` and the more specific instruction.
 foodie_agent = Agent(
@@ -19,7 +25,8 @@ foodie_agent = Agent(
     When you recommend a place, you must output *only* the name of the establishment and nothing else.
     For example, if the best sushi is at 'Jin Sho', you should output only: Jin Sho
     """,
-    output_key="destination"  # ADK will save the agent's final response to state['destination']
+    output_key="destination",  # ADK will save the agent's final response to state['destination']
+    generate_content_config=SEARCH_TOOL_CONFIG,
 )
 
 # The `{destination}` placeholder is automatically filled by the ADK from the state.
@@ -33,6 +40,7 @@ transportation_agent = Agent(
     Analyze the user's full original query to find their starting point.
     Then, provide clear directions from that starting point to {destination}.
     """,
+    generate_content_config=SEARCH_TOOL_CONFIG,
 )
 
 # This agent will run foodie_agent, then transportation_agent, in that exact order.
