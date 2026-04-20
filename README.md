@@ -4,8 +4,9 @@
 
 - FastAPI API 層（`/chat`, `/memory`, `/health`）
 - SQLite 持久化（sessions / messages / embeddings / compressions）
-- Google ADK 多代理流程（Root Coordinator + Orchestrator + Specialists）
+- Google ADK 多代理流程（Root Coordinator + Orchestrator + Specialists + Flow Templates）
 - Markdown 記憶體（`data/identity.md`, `data/soul.md`, `data/startup.md`, `data/master.md`, `data/memory.md`）
+- Local Skills（`data/skills/<skill_name>/SKILL.md` + optional `run.py`）
 
 Google ADK 參考：
 
@@ -16,6 +17,10 @@ Google ADK 參考：
 
 ```text
 Avatar/
+├── adk_agents/
+│   └── avatar/
+│       ├── __init__.py
+│       └── agent.py      # ADK web/CLI auto-discovery root agent
 ├── app/
 │   ├── agent.py        # ADK Agent Graph + Tool Guardrails
 │   ├── main.py         # FastAPI routes + DB transaction flow
@@ -26,11 +31,10 @@ Avatar/
 │   ├── startup.md
 │   ├── master.md
 │   └── memory.md
+│   └── skills/         # Local skill registry
 ├── test/
 │   ├── test_agent.py
 │   └── test_main.py
-├── demo/
-│   └── index.html
 ├── requirements.txt
 └── pyproject.toml
 ```
@@ -43,6 +47,9 @@ AvatarCoordinator (root)
 │   ├── ContextCollector
 │   ├── MemoryRetriever
 │   └── ResponseComposer
+│   ├── SequentialFlowTemplate
+│   ├── ParallelFlowTemplate
+│   └── LoopFlowTemplate
 └── MemoryMaintenanceAgent
 ```
 
@@ -50,10 +57,46 @@ AvatarCoordinator (root)
 
 1. `POST /chat` 驗證請求並建立 session。
 2. 儲存 user message + embedding。
-3. 交給 ADK Runner，讓 orchestrator 透過 `search_memory` / `load_memory` 等工具動態取用 context。
+3. 交給 ADK Runner，讓 orchestrator 透過 `search_memory` / `load_memory` / `read_runtime_context` 與 flow template 工具動態取用 context。
 4. 若本回合沒有 ADK retrieval tool 命中，API 會執行 SQLite fallback retrieval 以維持回傳相容性。
 5. 儲存 assistant message + embedding。
 6. 達到門檻時觸發 compression 並寫入 `compressions`。
+
+## 啟用說明
+
+1. 在專案根目錄建立並設定 `.env`：
+
+```bash
+cp .env.example .env
+```
+
+2. 在 `.env` 設定 API key（建議用 `GOOGLE_API_KEY`）：
+
+- `GOOGLE_API_KEY`（建議；與 `.env.example` 一致）
+- `GEMINI_API_KEY`（相容備援）
+- 若兩者同時設定，runtime 會優先使用 `GOOGLE_API_KEY`
+
+3. 安裝依賴：
+
+```bash
+uv sync
+# 或
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+4. 啟動 API（建議由 repo root 執行）：
+
+```bash
+uvicorn Avatar.app.main:app --reload --port 8000
+```
+
+5. 若要啟用 ADK Web（從 `Avatar/` 目錄）：
+
+```bash
+PYTHONPATH=adk_agents adk web
+```
 
 ## API Contract
 
@@ -132,7 +175,7 @@ Success:
 
 必要環境變數：
 
-- `GEMINI_API_KEY`：ADK / Gemini 呼叫需要
+- `GOOGLE_API_KEY` 或 `GEMINI_API_KEY`：ADK / Gemini 呼叫需要（建議前者）
 
 可選：
 
@@ -157,9 +200,6 @@ Success:
 ## 本機執行
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
 uvicorn Avatar.app.main:app --reload --port 8000
 ```
 
@@ -173,7 +213,8 @@ pytest -q
 
 - 不依賴 Firebase/Firestore。
 - ADK-first：有 ADK 等價方法時優先使用 ADK 原生工具流程。
-- 保持 `identity > soul > startup > memory` 的提示優先順序。
+- 保持 `identity > soul > master` 的核心提示優先順序；`startup` 作為 runtime/session guidance 在需要時由工具流取用。
 - Tool path guardrails 僅允許 `data/`。
 - 透過交易確保單次 chat 請求寫入一致性。
 - retrieval 排序 deterministic，便於測試與重現。
+- 所有 LlmAgent 共享 `GenerateContentConfig`（`automatic_function_calling.disable=true` + `include_server_side_tool_invocations=true`）以確保 built-in tools 正常執行。
