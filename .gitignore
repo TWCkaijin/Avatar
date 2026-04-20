@@ -1,0 +1,51 @@
+# custom 
+/Avatar/data/
+.adk
+.claude/skills/post-change-test-and-sync
+/Avatar
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+venv/
+ENV/
+env/
+
+# Firebase
+.firebase/
+firebase-debug.log
+firebase-debug.*.log
+ui-debug.log
+firestore-debug.log
+pubsub-debug.log
+*.local
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Service account keys (never commit these!)
+*-service-account*.json
+service-account*.json
+credentials.json
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# uv
+.uv/
