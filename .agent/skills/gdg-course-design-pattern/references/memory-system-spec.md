@@ -3,27 +3,32 @@
 This document defines the normative markdown memory contracts for the Local Agent OS.
 
 ## Directory Contract
+
 - Base path: `Avatar/data/`
 - Required files:
-	- `identity.md`
-	- `soul.md`
-	- `startup.md`
-	- `master.md`
-	- `memory.md`
+  - `identity.md`
+  - `soul.md`
+  - `startup.md`
+  - `master.md`
+  - `memory.md`
 
 All files must be UTF-8 text and line-ending consistent.
 
 ## File Roles And Invariants
 
 ### `identity.md`
+
 Purpose:
+
 - Defines role identity and character settings requested by the user.
 
 Invariants:
+
 - Must always contain: role, mission, hard constraints.
 - Should be changed only by explicit user instruction.
 
 Recommended structure:
+
 ```markdown
 # Identity
 ## Role
@@ -33,14 +38,18 @@ Recommended structure:
 ```
 
 ### `soul.md`
+
 Purpose:
+
 - Defines the assistant's own stable personality principles, values, and reflection heuristics.
 
 Invariants:
+
 - Must not override hard constraints in `identity.md`.
 - Should evolve slowly and explicitly.
 
 Recommended structure:
+
 ```markdown
 # Soul
 ## Core Values
@@ -49,14 +58,18 @@ Recommended structure:
 ```
 
 ### `master.md`
+
 Purpose:
+
 - Stores durable memory about the user (master profile, preferences, relationship context).
 
 Invariants:
+
 - User-specific profile facts should be concise, current, and grounded in explicit evidence.
 - Should prioritize persistent user preferences over transient task notes.
 
 Recommended structure:
+
 ```markdown
 # Master
 ## Basic Info
@@ -65,14 +78,18 @@ Recommended structure:
 ```
 
 ### `startup.md`
+
 Purpose:
+
 - Defines boot-time priming instructions and active goals.
 
 Invariants:
+
 - Loaded at session start before first response generation.
 - Can include temporary run context, but avoid secrets.
 
 Recommended structure:
+
 ```markdown
 # Startup
 ## Current Focus
@@ -81,14 +98,18 @@ Recommended structure:
 ```
 
 ### `memory.md`
+
 Purpose:
+
 - Stores user-requested memory entries and other important durable facts/decisions.
 
 Invariants:
+
 - Prefer append-only event records with timestamps.
 - Corrections should reference prior entries instead of destructive edits.
 
 Recommended structure:
+
 ```markdown
 # Memory
 ## User Preferences
@@ -99,15 +120,18 @@ Recommended structure:
 ```
 
 ## Read Priority
-Prompt assembly order:
-1. `identity.md`
-2. `soul.md`
-3. `startup.md`
-4. `master.md`
-5. Relevant slices from `memory.md`
-6. Retrieved RAG snippets
+
+Effective runtime order:
+
+1. Root instruction loads `identity.md` first.
+2. Root instruction then loads `soul.md`.
+3. Root instruction then loads `master.md`.
+4. Specialist agents load additional durable context through ADK `load_memory`.
+5. Retrieval context is added via `search_memory` hits.
+6. `startup.md` is treated as runtime/session guidance and is consumed through tool flow when needed.
 
 ## Write Policy
+
 - `identity.md`: write is allowed by default.
 - `soul.md`: write is allowed by default.
 - Optional strict mode: when `STRICT_SENSITIVE_WRITE_GUARD=true`, writes to `identity.md` and `soul.md` require explicit approval.
@@ -116,27 +140,43 @@ Prompt assembly order:
 - `master.md`: system may update with durable user-profile memory and preference changes.
 - `memory.md`: system may append factual observations and decisions.
 
+Purpose routing guidance:
+
+- Role/persona requests should target `identity.md`.
+- Durable user profile and preference memory should target `master.md`.
+- General remembered facts/tasks/decisions should target `memory.md`.
+- Assistant self-reflection or personality principle updates should target `soul.md`.
+
 ## Safe Update Algorithm
+
 1. Read current file.
 2. Validate path is under allowed base directory.
 3. Generate candidate patch.
 4. Validate invariants and size limits.
-5. Persist changes by tool contract:
-	- `write_file`: atomic replace (temp file + rename)
-	- `append_file`: newline-normalized append
-	- `create_file`: create-if-absent
+5. Persist changes by tool contract.
 6. Append audit note to `memory.md` for material changes.
 
+Tool contract details:
+
+- `write_file`: atomic replace (temp file + rename)
+- `append_file`: newline-normalized append
+- `create_file`: create-if-absent
+
 ## Redaction And Privacy
+
 - Do not persist secrets, tokens, or credentials.
 - Redact personal sensitive data unless explicitly required.
 - Prefer summarized facts over verbatim transcripts for privacy.
 
 ## Size And Rotation
+
 - If `memory.md` exceeds threshold (for example 500 KB), summarize stale sections.
 - Persist archival summary in RAG store before pruning.
 
 ## Acceptance Criteria
+
 - All required files exist and load without errors.
 - Write policies are enforced by tool layer.
-- Prompt assembly always preserves identity and constraint precedence.
+- Root instruction always preserves identity-first precedence.
+- Strict mode blocks identity/soul writes without explicit approval.
+- Purpose-based file routing is documented and enforced by agent instructions.

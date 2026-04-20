@@ -1,8 +1,9 @@
 # Google ADK Specification
 
 Official References:
-- https://adk.dev/
-- https://adk.dev/docs/
+
+- [adk.dev](https://adk.dev/)
+- [ADK docs](https://adk.dev/docs/)
 
 This document defines runtime behavior and tool contracts for the ADK-based Local Agent OS.
 
@@ -30,7 +31,9 @@ AvatarCoordinator (LlmAgent, root; uses AgentTool routing)
 
 - Agent runtime: Google ADK `Agent` + `Runner`.
 - Model default: `gemini-3-flash-preview`.
+- App name: `avatar`.
 - Session service: in-memory for runtime control, with durable conversation state in SQLite.
+- Memory service: in-memory ADK memory service used alongside SQLite persistence.
 
 ## ADK Native Adapter Contract
 
@@ -54,7 +57,7 @@ AvatarCoordinator (LlmAgent, root; uses AgentTool routing)
 4. Wrap specialists with `AgentTool` for dynamic invocation where needed.
 5. Construct workflow orchestrator (`ConversationOrchestrator`) with adaptive specialist-tool routing policy.
 6. Construct root coordinator (`AvatarCoordinator`) with top-level routing tools.
-7. Register toolset with guardrails.
+7. Register toolset with guardrails (`preload_memory` on root, file/retrieval tools on specialists).
 8. Initialize `Runner` with app metadata and `auto_create_session=True`.
 9. On each request, host runtime passes the user message directly to ADK; specialists gather context via ADK tools (`load_memory`, `search_memory`, `read_file`) as first priority.
 
@@ -128,7 +131,7 @@ When a user request explicitly asks for role/personality/profile memory updates,
 
 ## Tool Guardrails
 
-- Allowed path roots: `Avatar/data/` and approved subdirectories.
+- Allowed path roots: effective `DATA_DIR` (defaults to `Avatar/data/`) and approved subdirectories.
 - Disallow traversal (`..`) and absolute paths outside workspace.
 - Maximum read/write size per call should be bounded.
 - All tool calls (`read_file`, `write_file`, `append_file`, `create_file`, `search_memory`) must emit structured request/response logs with category, status, and operation metadata.
@@ -168,6 +171,7 @@ Agent behavior on tool failure:
 - Log tool activity records at request/response phases for `file_read`, `file_mutation`, `memory_retrieval`, and terminal categories.
 - Log API operation stages for `/chat` transaction lifecycle (`request_received`, `ensure_session`, `persist_*`, `retrieve_context`, `invoke_agent`, `compress_context`, `transaction commit/rollback`, `response_ready`).
 - Log `/memory` operation stages (`request_received`, `fetch_messages`, `read_memory_files`).
+- Log storage bootstrap as `storage_config` and successful persistence as `chat_persisted`.
 
 ## Acceptance Criteria
 
