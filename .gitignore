@@ -1,6 +1,7 @@
 # custom 
 /Avatar/data/
 .adk
+.agent/skills/gdg-course-design-pattern/references/change-log.md
 .agent/skills/post-change-test-and-sync
 /Avatar
 # Python-generated files

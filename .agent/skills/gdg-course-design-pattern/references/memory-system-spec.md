@@ -1,202 +1,262 @@
 # Local Memory System Specification
 
-This document defines the normative markdown memory contracts for the Local Agent OS.
+This document defines the markdown-memory and local-skill contracts for Avatar Local Agent OS.
+
+## Scope
+
+Covers:
+
+- Required memory files under `Avatar/data/`.
+- Memory file roles and invariants.
+- Read and write precedence.
+- Sensitive-write governance.
+- Local skill registry contract under `Avatar/data/skills/`.
+
+Does not define API envelopes; see `fastapi-sqlite-spec.md`.
 
 ## Directory Contract
 
-- Base path: `Avatar/data/`
-- Required files:
-  - `identity.md`
-  - `soul.md`
-  - `startup.md`
-  - `master.md`
-  - `memory.md`
-- Required directory:
-  - `skills/` (local skill registry and executable skill code)
+Base data root:
 
-All files must be UTF-8 text and line-ending consistent.
+- `Avatar/data/` (overrideable by `AVATAR_DATA_DIR`)
 
-## Local Skills Contract (`Avatar/data/skills/`)
+Required markdown files:
 
-Purpose:
+- `identity.md`
+- `soul.md`
+- `startup.md`
+- `master.md`
+- `memory.md`
 
-- Stores agent-generated reusable skill definitions and optional executable code.
+Required directory:
 
-Layout:
+- `skills/`
 
-- `Avatar/data/skills/<skill_name>/SKILL.md` (required per registered skill)
-- `Avatar/data/skills/<skill_name>/run.py` (optional executable entrypoint)
+Encoding and formatting:
 
-Invariants:
+- UTF-8 text
+- normalized line endings
+- explicit headings to preserve stable parsing by LLM agents
 
-- `skill_name` must match `[A-Za-z0-9][A-Za-z0-9_-]{0,63}`.
-- Skill definitions must stay under `Avatar/data/skills/`.
-- Executable skill code may run only from approved skill entrypoints under `Avatar/data/skills/<skill_name>/`.
-- Skill execution input must be JSON-compatible and execution must be timeout bounded.
-
-## File Roles And Invariants
+## Memory File Roles
 
 ### `identity.md`
 
 Purpose:
 
-- Defines role identity and character settings requested by the user.
+- User-requested role/persona/mission constraints for the assistant.
 
-Invariants:
+Hard invariants:
 
-- Must always contain: role, mission, hard constraints.
-- Should be changed only by explicit user instruction.
+- Must include role-level constraints.
+- Takes highest precedence during instruction composition.
+- In strict mode, write requires explicit approval.
 
-Recommended structure:
+Recommended sections:
 
-```markdown
-# Identity
-## Role
-## Mission
-## Hard Constraints
-## Communication Style
-```
+- `# Identity`
+- `## Role`
+- `## Mission`
+- `## Hard Constraints`
+- `## Communication Style`
 
 ### `soul.md`
 
 Purpose:
 
-- Defines the assistant's own stable personality principles, values, and reflection heuristics.
+- Assistant values, self-reflection, and decision heuristics.
 
-Invariants:
+Hard invariants:
 
-- Must not override hard constraints in `identity.md`.
-- Should evolve slowly and explicitly.
+- Must not override identity hard constraints.
+- Changes should be infrequent and intentional.
+- In strict mode, write requires explicit approval.
 
-Recommended structure:
+Recommended sections:
 
-```markdown
-# Soul
-## Core Values
-## Decision Heuristics
-## Reflection Loop
-```
+- `# Soul`
+- `## Core Values`
+- `## Decision Heuristics`
+- `## Reflection Loop`
 
 ### `master.md`
 
 Purpose:
 
-- Stores durable memory about the user (master profile, preferences, relationship context).
+- Durable profile memory about the user (preferences, stable habits, collaboration style).
 
-Invariants:
+Hard invariants:
 
-- User-specific profile facts should be concise, current, and grounded in explicit evidence.
-- Should prioritize persistent user preferences over transient task notes.
+- Facts should be explicit and evidence-based.
+- Avoid speculative assumptions.
 
-Recommended structure:
+Recommended sections:
 
-```markdown
-# Master
-## Basic Info
-## Impression
-## Working Style Notes
-```
+- `# Master`
+- `## Impression`
+- `## Working Style Notes`
 
 ### `startup.md`
 
 Purpose:
 
-- Defines boot-time priming instructions and active goals.
+- Session startup guidance and boot-time context.
 
-Invariants:
+Hard invariants:
 
-- Loaded at session start before first response generation.
-- Can include temporary run context, but avoid secrets.
+- Intended as runtime/session guidance.
+- Can be read when startup/session context is needed.
 
-Recommended structure:
+Recommended sections:
 
-```markdown
-# Startup
-## Current Focus
-## Session Checklist
-## Immediate Context
-```
+- `# Startup`
+- `## Current Focus`
+- `## Session Checklist`
+- `## Immediate Context`
 
 ### `memory.md`
 
 Purpose:
 
-- Stores user-requested memory entries and other important durable facts/decisions.
+- Long-term factual memory timeline and decision ledger.
 
-Invariants:
+Hard invariants:
 
-- Prefer append-only event records with timestamps.
-- Corrections should reference prior entries instead of destructive edits.
+- Prefer append-oriented updates.
+- Corrections should preserve traceability.
 
-Recommended structure:
+Recommended sections:
 
-```markdown
-# Memory
-## User Preferences
-## Project Facts
-## Decisions
-## Open Questions
-## Timeline
-```
+- `# Memory`
+- `## User Preferences`
+- `## Project Facts`
+- `## Decisions`
+- `## Open Questions`
+- `## Timeline`
 
-## Read Priority
+## Runtime Read Priority
 
-Effective runtime order:
+Instruction composition priority in current implementation:
 
-1. Root instruction loads `identity.md` first.
-2. Root instruction then loads `soul.md`.
-3. Root instruction then loads `master.md`.
-4. Root instruction includes local skill registry context and memory-purpose routing guidance.
-5. `startup.md` is treated as runtime/session guidance and is consumed through tool flow when needed (for example via `read_file`, `load_memory`, or runtime hints).
-6. Specialist agents load additional durable context through ADK `load_memory` and retrieval context via `search_memory` hits.
+1. `identity.md`
+2. `soul.md`
+3. `master.md`
+4. local skills registry summary and file-purpose routing guidance
+5. `startup.md` as optional runtime/session guidance through tool flow
 
-## Write Policy
+Operational note:
 
-- `identity.md`: write is allowed by default.
-- `soul.md`: write is allowed by default.
-- Optional strict mode: when `STRICT_SENSITIVE_WRITE_GUARD=true`, writes to `identity.md` and `soul.md` require explicit approval.
-- Approval sources: request `allow_sensitive_writes=true`, metadata `allow_sensitive_writes=true`, or clear write-intent language targeting identity/soul.
-- `startup.md`: system may update when session objective changes.
-- `master.md`: system may update with durable user-profile memory and preference changes.
-- `memory.md`: system may append factual observations and decisions.
+- `memory.md` is not directly inlined in root instruction by default; it is available via tools and retrieval flow.
 
-Purpose routing guidance:
+## Purpose-Based Write Routing
 
-- Role/persona requests should target `identity.md`.
-- Durable user profile and preference memory should target `master.md`.
-- General remembered facts/tasks/decisions should target `memory.md`.
-- Assistant self-reflection or personality principle updates should target `soul.md`.
+When user intent is ambiguous, route writes by purpose:
+
+- role/persona definition -> `identity.md`
+- user profile/preferences -> `master.md`
+- general remembered facts/tasks/decisions -> `memory.md`
+- assistant self-reflection/personality policy -> `soul.md`
+
+Do not default all writes to `memory.md`.
+
+## Sensitive Write Governance
+
+Sensitive files:
+
+- `identity.md`
+- `soul.md`
+
+Default behavior:
+
+- writable by default
+
+Strict mode behavior:
+
+- enabled by `STRICT_SENSITIVE_WRITE_GUARD=true`
+- writes require explicit approval
+
+Approval sources accepted by runtime:
+
+- request `allow_sensitive_writes=true`
+- metadata `allow_sensitive_writes=true`
+- explicit natural-language write intent targeting identity/soul
 
 ## Safe Update Algorithm
 
-1. Read current file.
-2. Validate path is under allowed base directory.
-3. Generate candidate patch.
-4. Validate invariants and size limits.
-5. Persist changes by tool contract.
-6. Append audit note to `memory.md` for material changes.
+1. Resolve and validate target path under data root.
+2. Read current content when diff-aware update is needed.
+3. Validate intent against file-purpose routing.
+4. Check strict sensitive-write policy.
+5. Apply update via tool contract.
+6. Verify tool result (`Success`) before claiming completion.
 
-Tool contract details:
+Tool semantics:
 
-- `write_file`: atomic replace (temp file + rename)
+- `write_file`: atomic replace
 - `append_file`: newline-normalized append
 - `create_file`: create-if-absent
 
-## Redaction And Privacy
+## Local Skill Registry Contract
 
-- Do not persist secrets, tokens, or credentials.
-- Redact personal sensitive data unless explicitly required.
-- Prefer summarized facts over verbatim transcripts for privacy.
+Location:
 
-## Size And Rotation
+- `Avatar/data/skills/<skill_name>/`
 
-- If `memory.md` exceeds threshold (for example 500 KB), summarize stale sections.
-- Persist archival summary in RAG store before pruning.
+Required file per skill:
+
+- `SKILL.md`
+
+Optional executable:
+
+- `run.py`
+
+Name policy:
+
+- regex: `[A-Za-z0-9][A-Za-z0-9_-]{0,63}`
+
+Runtime constraints:
+
+- max auto-discovered skills: `MAX_LOCAL_SKILLS = 20`
+- execution timeout bounded by `SKILL_EXEC_TIMEOUT_SECONDS`
+- skill output size bounded by `MAX_FILE_BYTES`
+
+## Skill Tool Contracts
+
+- `list_skills`: returns JSON metadata list
+- `read_skill`: returns markdown body
+- `create_skill`: creates skill directory + files
+- `execute_skill`: runs `run.py` with JSON payload via stdin and env
+
+Execution I/O contract:
+
+- stdin contains normalized JSON
+- env includes `AVATAR_SKILL_INPUT_JSON`
+- non-zero exit becomes `TOOL_RUNTIME_ERROR`
+
+## Privacy and Redaction
+
+Do not persist:
+
+- credentials
+- API tokens
+- sensitive secret material unless explicitly required and approved
+
+Prefer:
+
+- concise factual summaries
+- durable signals over verbatim long transcripts
+
+## Recommended Size Management
+
+Suggested operational limits:
+
+- Keep `memory.md` compact and navigable.
+- For large growth, summarize stale sections into concise history notes while preserving important decisions.
 
 ## Acceptance Criteria
 
-- All required files exist and load without errors.
-- Write policies are enforced by tool layer.
-- Root instruction always preserves identity-first precedence.
-- Strict mode blocks identity/soul writes without explicit approval.
-- Purpose-based file routing is documented and enforced by agent instructions.
+- Required files and `skills/` directory exist and are readable.
+- Identity/soul strict-write policy behaves correctly in strict mode.
+- Purpose-based routing is reflected in responder/memory-maintenance behavior.
+- Local skill lifecycle functions (create/list/read/execute) work within guardrails.
+- Memory contracts remain consistent with ADK instruction composition.
