@@ -82,6 +82,15 @@ Mandatory coverage:
 - path-outside-data writes are denied.
 - `list_skills`/`read_skill`/`create_skill`/`execute_skill` end-to-end.
 - local skill registry appears in root system instruction.
+- `create_skill` validation rules are enforced (frontmatter/name/description/required section/size).
+
+## Startup and Environment Test Requirements
+
+Mandatory coverage:
+
+- API runtime loads repository-root `.env` before model invocation.
+- ADK adapter startup keeps import-path bootstrap (`sys.path` injection) and `from app.agent import create_root_agent` contract.
+- Run/test commands documented for both repository-root startup and `Avatar/` working-directory startup.
 
 ## Retrieval and Compression Test Requirements
 

@@ -237,7 +237,20 @@ Tool failure policy in final response:
 ### `create_skill(skill_name: str, skill_markdown: str, python_code: str = "") -> str`
 
 - Creates `<skill_name>/SKILL.md` and optional `run.py`.
-- Rejects empty markdown and duplicate existing skill directory.
+- Applies strict markdown contract validation before creation.
+- Rejects duplicate existing skill directory.
+
+Validation contract (must match runtime behavior):
+
+- `skill_name` regex: `[A-Za-z0-9][A-Za-z0-9_-]{0,63}`.
+- Markdown must start with YAML frontmatter (`---`) and include closing marker.
+- Frontmatter must include `name` and `description`.
+- Frontmatter `name` must exactly equal `skill_name`.
+- Frontmatter `description` must include `Use when` guidance.
+- Body must include section `## Step-by-Step Workflows`.
+- Markdown size guardrails:
+  - bytes <= `MAX_FILE_BYTES`
+  - chars <= `MAX_SKILL_DOC_CHARS` (currently `4096`)
 
 ### `execute_skill(skill_name: str, input_json: str = "{}") -> str`
 
@@ -269,7 +282,7 @@ The following route guidance is mandatory in responder/memory-maintenance logic:
 - Allowed path root: effective `DATA_DIR` only.
 - Reject path traversal and out-of-scope absolute paths.
 - Use structured tool-execution logs for both request and response phases.
-- Do not add extra per-file write blocking inside `DATA_DIR`; in-scope writes are allowed.
+- Do not add extra per-file write blocking inside `DATA_DIR`; any in-scope path under `Avatar/data` must be writable.
 
 ## Runtime Context Contract
 
@@ -319,6 +332,7 @@ File: `Avatar/adk_agents/avatar/agent.py`
 
 - Must add `Avatar/` directory to `sys.path`.
 - Must import `create_root_agent` from `app.agent`.
+- Must load repository-root `.env` before creating `root_agent`.
 - Must expose `root_agent = create_root_agent()` at import time.
 
 ## Acceptance Criteria

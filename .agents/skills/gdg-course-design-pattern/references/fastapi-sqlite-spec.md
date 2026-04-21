@@ -21,6 +21,11 @@ This document defines:
 - Compression Service: summarization and marker updates for long sessions.
 - SQLite Repository: sessions/messages/embeddings/compressions.
 
+Environment bootstrap contract:
+
+- `Avatar/app/main.py` must load repository-root `.env` explicitly before runtime initialization.
+- Runtime key resolution remains `GOOGLE_API_KEY` first, then `GEMINI_API_KEY` fallback.
+
 ## API Route Surface (Core Profile)
 
 - `GET /health`

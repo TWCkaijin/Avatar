@@ -19,7 +19,7 @@ The intent is reproducibility:
 
 ## Scope And Boundaries
 
-- This skill applies to Avatar runtime and data flow design, plus documentation updates in `.agent/skills/gdg-course-design-pattern`.
+- This skill applies to Avatar runtime and data flow design, plus documentation updates in `.agents/skills/gdg-course-design-pattern`.
 - Changes must stay within the Local Agent OS pattern and avoid reintroducing Firebase services.
 - When requirements are ambiguous, prefer explicit contracts over implicit behavior.
 - Keep documentation synchronized with the current implementation in Avatar/app/, Avatar/adk_agents/, Avatar/data/, and Avatar/test/.
@@ -50,7 +50,7 @@ When documentation and code disagree, follow this strict priority order:
 1. Runtime code in `Avatar/app/*.py`
 2. Tests in `Avatar/test/*.py`
 3. ADK adapter in `Avatar/adk_agents/avatar/agent.py`
-4. Reference docs under `.agent/skills/gdg-course-design-pattern/references/*.md`
+4. Reference docs under `.agents/skills/gdg-course-design-pattern/references/*.md`
 5. README files
 6. Historical notes in `references/change-log.md`
 
@@ -205,6 +205,56 @@ Structured logs must remain stable:
   - allow `GEMINI_API_KEY` fallback
   - if both are set, `GOOGLE_API_KEY` takes precedence.
 
+## Runtime Startup, Import Path, And Dotenv Contract (Critical)
+
+This section is mandatory for reproducibility when other agents execute this skill.
+
+### Startup Path And Import Path Rules
+
+- API startup from repository root:
+  - `uvicorn Avatar.app.main:app --reload --port 8000`
+- API startup from `Avatar/` working directory:
+  - `uvicorn app.main:app --reload --port 8000`
+- ADK web startup from `Avatar/` working directory:
+  - `PYTHONPATH=adk_agents adk web`
+- Test startup from repository root:
+  - `PYTHONPATH=. uv run pytest Avatar/test/test_agent.py Avatar/test/test_main.py -q`
+
+Import-path bootstrap rules that must not be removed:
+
+- `Avatar/adk_agents/avatar/agent.py` must inject `PROJECT_ROOT` (the `Avatar/` app folder) into `sys.path`.
+- Adapter import must remain `from app.agent import create_root_agent`.
+
+### Root `.env` Loading Rules
+
+- API runtime (`Avatar/app/main.py`) must load env from repository root explicitly:
+  - `REPO_ROOT = Path(__file__).resolve().parents[2]`
+  - `load_dotenv(REPO_ROOT / ".env")`
+- ADK adapter (`Avatar/adk_agents/avatar/agent.py`) must also load repository root `.env` before agent creation.
+- `google-adk-trail/*` scripts should continue loading the same root `.env` explicitly.
+
+Do not rely on implicit current-working-directory `.env` discovery for production/runtime contracts.
+
+### Data Write Guardrail Rules
+
+- File mutation path guard is rooted at effective `DATA_DIR`.
+- Any target within `Avatar/data` (or effective `AVATAR_DATA_DIR`) must be allowed without additional approval gates.
+- Out-of-scope paths must be denied with `TOOL_PERMISSION_DENIED`.
+
+### Skill Validation Rules (create_skill Contract)
+
+`create_skill(skill_name, skill_markdown, python_code)` must enforce:
+
+- `skill_name` regex: `[A-Za-z0-9][A-Za-z0-9_-]{0,63}`.
+- `skill_markdown` must be non-empty UTF-8 text and within size limits.
+- YAML frontmatter is required and must start with `---` and have closing `---`.
+- Frontmatter `name` is required and must exactly match `skill_name`.
+- Frontmatter `description` is required and must include `Use when` guidance.
+- Markdown body must include section title `## Step-by-Step Workflows`.
+- Skill directory must not already exist with content.
+
+Failure paths must return stable tool errors (`TOOL_VALIDATION_ERROR`, `TOOL_IO_ERROR`, `TOOL_PERMISSION_DENIED`, `TOOL_RUNTIME_ERROR`) and be logged via `tool_execution`.
+
 ## Component Responsibilities
 
 - API Layer (Avatar/app/main.py): Input validation, error mapping, CORS, response contract consistency, transaction lifecycle logging.
@@ -275,9 +325,10 @@ Follow this sequence exactly to recreate the project reliably.
 
 ### Step 5: Tool And Guardrail Layer
 
-- Implement file tools with strict path restrictions.
-- Remove sensitive-write approval rules; allow writes for all files under `data/`.
+- Implement file tools with strict scope restriction to effective `DATA_DIR`.
+- Enforce unconditional in-scope write allowance for all files under `data/`.
 - Implement local skill lifecycle tools and bounded execution timeout.
+- Implement strict skill markdown validation contract for `create_skill`.
 
 ### Step 6: Retrieval And Compression
 
@@ -312,13 +363,13 @@ PYTHONPATH=. .venv/bin/python -m pytest -q
 
 After code changes, update these files if behavior changes:
 
-- `.agent/skills/gdg-course-design-pattern/SKILL.md`
-- `.agent/skills/gdg-course-design-pattern/references/adk-spec.md`
-- `.agent/skills/gdg-course-design-pattern/references/fastapi-sqlite-spec.md`
-- `.agent/skills/gdg-course-design-pattern/references/env-setup.md`
-- `.agent/skills/gdg-course-design-pattern/references/memory-system-spec.md`
-- `.agent/skills/gdg-course-design-pattern/references/testing-spec.md`
-- `.agent/skills/gdg-course-design-pattern/references/change-log.md`
+- `.agents/skills/gdg-course-design-pattern/SKILL.md`
+- `.agents/skills/gdg-course-design-pattern/references/adk-spec.md`
+- `.agents/skills/gdg-course-design-pattern/references/fastapi-sqlite-spec.md`
+- `.agents/skills/gdg-course-design-pattern/references/env-setup.md`
+- `.agents/skills/gdg-course-design-pattern/references/memory-system-spec.md`
+- `.agents/skills/gdg-course-design-pattern/references/testing-spec.md`
+- `.agents/skills/gdg-course-design-pattern/references/change-log.md`
 
 ## Core Profile vs Extension Profile
 

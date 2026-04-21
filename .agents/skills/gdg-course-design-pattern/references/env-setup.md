@@ -17,6 +17,11 @@ Project runtime root:
 - Repository root contains shared manifests and `.env`.
 - Application runtime code lives under `Avatar/`.
 
+Current entrypoint files:
+
+- `Avatar/app/main.py` (FastAPI runtime)
+- `Avatar/adk_agents/avatar/agent.py` (ADK adapter entrypoint)
+
 Key runtime folders:
 
 - `Avatar/app/`
@@ -42,7 +47,7 @@ Rules:
 - Prefer `GOOGLE_API_KEY`.
 - `GEMINI_API_KEY` is compatibility fallback.
 - If both are set, runtime should use `GOOGLE_API_KEY`.
-- Load `.env` via `load_dotenv()` before reading API keys.
+- Load repository-root `.env` explicitly before reading API keys.
 - Resolve key as `os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")`.
 
 Optional runtime variables:
@@ -157,20 +162,27 @@ cp .env.example .env
 ## Dotenv Resolution Rules
 
 - Canonical `.env` location is repo root.
-- Runtime entrypoints must call `load_dotenv()` before ADK/model initialization.
+- Runtime entrypoints must call `load_dotenv(<repo-root>/.env)` before ADK/model initialization.
 - `google-adk-trail/*` scripts resolve root `.env` explicitly.
 
 Recommended bootstrap snippet:
 
 ```python
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 
-load_dotenv()
+REPO_ROOT = Path(__file__).resolve().parents[2]
+load_dotenv(REPO_ROOT / ".env")
 google_api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
 if not google_api_key:
   raise RuntimeError("Missing GOOGLE_API_KEY (or GEMINI_API_KEY) in .env")
 ```
+
+Adapter bootstrap requirement (`Avatar/adk_agents/avatar/agent.py`):
+
+- Ensure `PROJECT_ROOT` (`Avatar/`) is inserted into `sys.path`.
+- Ensure repository-root `.env` is loaded before `create_root_agent()`.
 
 ## Data Bootstrap Requirements
 
@@ -202,6 +214,11 @@ uvicorn app.main:app --reload --port 8000
 ```bash
 PYTHONPATH=adk_agents adk web
 ```
+
+Import path requirement for ADK web:
+
+- The adapter at `Avatar/adk_agents/avatar/agent.py` must keep `from app.agent import create_root_agent`.
+- Do not switch this import back to `Avatar.app.agent`.
 
 ## Test Commands
 
@@ -236,6 +253,7 @@ Log checks:
 - Current core API profile is `/health`, `/chat`, `/memory`.
 - Retrieval policy is ADK-tool-first (`search_memory`) with SQLite fallback.
 - File mutation tools allow writes for all files under data root; only out-of-scope paths are denied.
+- Data write policy is unconditional for all paths inside effective `Avatar/data`.
 
 ## Troubleshooting
 

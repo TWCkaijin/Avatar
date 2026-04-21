@@ -163,6 +163,7 @@ Write behavior for file mutation tools:
 
 - Any file under the effective data root (`Avatar/data/` or `AVATAR_DATA_DIR`) is writable.
 - No per-file approval gate is applied to `identity.md` or `soul.md`.
+- This unconditional allow rule also applies to `skills/`, markdown memory files, and other files under `Avatar/data`.
 - Paths outside data root are denied.
 
 ## Safe Update Algorithm

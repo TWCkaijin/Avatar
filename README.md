@@ -70,13 +70,13 @@ AvatarCoordinator (root)
 cp .env.example .env
 ```
 
-2. 在 `.env` 設定 API key（建議用 `GOOGLE_API_KEY`）：
+1. 在 `.env` 設定 API key（建議用 `GOOGLE_API_KEY`）：
 
 - `GOOGLE_API_KEY`（建議；與 `.env.example` 一致）
 - `GEMINI_API_KEY`（相容備援）
 - 若兩者同時設定，runtime 會優先使用 `GOOGLE_API_KEY`
 
-3. 安裝依賴：
+1. 安裝依賴：
 
 ```bash
 uv sync
@@ -86,13 +86,13 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-4. 啟動 API（建議由 repo root 執行）：
+1. 啟動 API（建議由 repo root 執行）：
 
 ```bash
 uvicorn Avatar.app.main:app --reload --port 8000
 ```
 
-5. 若要啟用 ADK Web（從 `Avatar/` 目錄）：
+1. 若要啟用 ADK Web（從 `Avatar/` 目錄）：
 
 ```bash
 PYTHONPATH=adk_agents adk web
