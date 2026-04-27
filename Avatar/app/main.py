@@ -24,6 +24,9 @@ import concurrent.futures
 from google import genai
 from google.genai import types
 
+# Global cache for mapped voices to avoid redundant LLM calls
+VOICE_MAPPING_CACHE: Dict[str, str] = {}
+
 def process_tts_chunks_sync(text: str):
     parts = re.split(r'<([a-zA-Z_]+)>', text)
     chunks = []
@@ -58,9 +61,34 @@ def process_tts_chunks_sync(text: str):
                       'iapetus', 'kore', 'laomedeia', 'leda', 'orus', 'puck', 'pulcherrima', 
                       'rasalgethi', 'sadachbia', 'sadaltager', 'schedar', 'sulafat', 'umbriel', 
                       'vindemiatrix', 'zephyr', 'zubenelgenubi']
-    if voice_name.lower() not in allowed_voices:
-        logger.warning(f"Voice {voice_name} is not supported, falling back to Puck")
-        voice_name = "Puck"
+    
+    orig_voice = voice_name.lower()
+    if orig_voice not in allowed_voices:
+        if orig_voice in VOICE_MAPPING_CACHE:
+            voice_name = VOICE_MAPPING_CACHE[orig_voice]
+        else:
+            try:
+                mapping_prompt = f"User requested TTS voice '{voice_name}'. It is not in the allowed list. Choose the best matching voice from this exact list based on matching gender, tone, or persona: {allowed_voices}. Reply with ONLY the exact name from the list, nothing else."
+                mapping_response = client.models.generate_content(
+                    model='gemini-2.5-flash',
+                    contents=mapping_prompt
+                )
+                raw_text = mapping_response.text
+                chosen_voice = raw_text.strip().lower() if raw_text else "puck"
+                chosen_voice = re.sub(r'[^a-z]', '', chosen_voice)
+                
+                if chosen_voice in allowed_voices:
+                    logger.info(f"Agent smartly mapped voice '{orig_voice}' to '{chosen_voice}'")
+                    voice_name = chosen_voice
+                else:
+                    logger.warning(f"Agent chose invalid voice '{chosen_voice}', falling back to puck")
+                    voice_name = "puck"
+                    
+                VOICE_MAPPING_CACHE[orig_voice] = voice_name
+            except Exception as e:
+                logger.warning(f"Agent voice mapping failed: {e}, falling back to puck")
+                voice_name = "puck"
+                VOICE_MAPPING_CACHE[orig_voice] = voice_name
 
     def generate_tts(chunk, chunk_index, model_name):
         try:
