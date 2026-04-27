@@ -10,7 +10,8 @@ from google.adk.agents.run_config import RunConfig
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.adk.memory import InMemoryMemoryService
-from google.adk.tools import AgentTool
+from google.adk.tools.agent_tool import AgentTool
+from google.genai.types import GenerateContentConfig
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -19,10 +20,10 @@ AVATAR_DATA_DIR = os.getenv("AVATAR_DATA_DIR", str(REPO_ROOT / "Avatar" / "data"
 MAX_FILE_BYTES = 512 * 1024
 
 AGENT_MODEL = "gemini-3-flash-preview"
-AGENT_GENERATE_CONTENT_CONFIG = {
-    "automatic_function_calling": {"disable": True},
-    "tool_config": {"include_server_side_tool_invocations": True}
-}
+AGENT_GENERATE_CONTENT_CONFIG = GenerateContentConfig(
+    automatic_function_calling={"disable": True}, # type: ignore
+    tool_config={"include_server_side_tool_invocations": True} # type: ignore
+) # type: ignore
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -207,19 +208,19 @@ COMPOSER_TOOLS = [load_memory, read_runtime_context, list_skills, read_skill, cr
 
 def create_orchestrator_agent() -> LlmAgent:
     sys_inst = load_system_instruction()
-    ContextCollector = LlmAgent(name="ContextCollector", model=AGENT_MODEL, instruction=sys_inst, tools=BASE_TOOLS + [load_memory, read_runtime_context], generate_content_config=AGENT_GENERATE_CONTENT_CONFIG, output_key="collected_context")
-    MemoryRetriever = LlmAgent(name="MemoryRetriever", model=AGENT_MODEL, instruction=sys_inst, tools=BASE_TOOLS + [search_memory, load_memory], generate_content_config=AGENT_GENERATE_CONTENT_CONFIG, output_key="retrieval_context")
-    ResponseComposer = LlmAgent(name="ResponseComposer", model=AGENT_MODEL, instruction=sys_inst, tools=BASE_TOOLS + COMPOSER_TOOLS, generate_content_config=AGENT_GENERATE_CONTENT_CONFIG, output_key="final_response")
+    ContextCollector = LlmAgent(name="ContextCollector", model=AGENT_MODEL, instruction=sys_inst, tools=BASE_TOOLS + [load_memory, read_runtime_context], generate_content_config=AGENT_GENERATE_CONTENT_CONFIG, output_key="collected_context") # type: ignore
+    MemoryRetriever = LlmAgent(name="MemoryRetriever", model=AGENT_MODEL, instruction=sys_inst, tools=BASE_TOOLS + [search_memory, load_memory], generate_content_config=AGENT_GENERATE_CONTENT_CONFIG, output_key="retrieval_context") # type: ignore
+    ResponseComposer = LlmAgent(name="ResponseComposer", model=AGENT_MODEL, instruction=sys_inst, tools=BASE_TOOLS + COMPOSER_TOOLS, generate_content_config=AGENT_GENERATE_CONTENT_CONFIG, output_key="final_response") # type: ignore
     
-    SequentialFlowTemplate = LlmAgent(name="SequentialFlowTemplate", model=AGENT_MODEL, instruction="", tools=BASE_TOOLS + [AgentTool(ContextCollector), AgentTool(MemoryRetriever), AgentTool(ResponseComposer)], generate_content_config=AGENT_GENERATE_CONTENT_CONFIG, output_key="sequential_template_result")
-    ParallelFlowTemplate = LlmAgent(name="ParallelFlowTemplate", model=AGENT_MODEL, instruction="", tools=BASE_TOOLS + [AgentTool(ContextCollector), AgentTool(MemoryRetriever), AgentTool(ResponseComposer)], generate_content_config=AGENT_GENERATE_CONTENT_CONFIG, output_key="parallel_template_result")
-    LoopFlowTemplate = LlmAgent(name="LoopFlowTemplate", model=AGENT_MODEL, instruction="", tools=BASE_TOOLS + [AgentTool(ContextCollector), AgentTool(MemoryRetriever), AgentTool(ResponseComposer)], generate_content_config=AGENT_GENERATE_CONTENT_CONFIG, output_key="loop_template_result")
+    SequentialFlowTemplate = LlmAgent(name="SequentialFlowTemplate", model=AGENT_MODEL, instruction="", tools=BASE_TOOLS + [AgentTool(ContextCollector), AgentTool(MemoryRetriever), AgentTool(ResponseComposer)], generate_content_config=AGENT_GENERATE_CONTENT_CONFIG, output_key="sequential_template_result") # type: ignore
+    ParallelFlowTemplate = LlmAgent(name="ParallelFlowTemplate", model=AGENT_MODEL, instruction="", tools=BASE_TOOLS + [AgentTool(ContextCollector), AgentTool(MemoryRetriever), AgentTool(ResponseComposer)], generate_content_config=AGENT_GENERATE_CONTENT_CONFIG, output_key="parallel_template_result") # type: ignore
+    LoopFlowTemplate = LlmAgent(name="LoopFlowTemplate", model=AGENT_MODEL, instruction="", tools=BASE_TOOLS + [AgentTool(ContextCollector), AgentTool(MemoryRetriever), AgentTool(ResponseComposer)], generate_content_config=AGENT_GENERATE_CONTENT_CONFIG, output_key="loop_template_result") # type: ignore
     
     ConversationOrchestrator = LlmAgent(
         name="ConversationOrchestrator",
         model=AGENT_MODEL,
         instruction="Orchestrate the conversation",
-        tools=BASE_TOOLS + [
+        tools=BASE_TOOLS + [ # type: ignore
             AgentTool(ContextCollector),
             AgentTool(MemoryRetriever),
             AgentTool(ResponseComposer),
@@ -239,7 +240,7 @@ def create_memory_maintenance_agent() -> LlmAgent:
         name="MemoryMaintenanceAgent",
         model=AGENT_MODEL,
         instruction=extended_inst,
-        tools=BASE_TOOLS + MEMORY_OP_TOOLS,
+        tools=BASE_TOOLS + MEMORY_OP_TOOLS, # type: ignore
         generate_content_config=AGENT_GENERATE_CONTENT_CONFIG,
         output_key="memory_update_status"
     )
@@ -253,7 +254,7 @@ def create_root_agent() -> LlmAgent:
         name="AvatarCoordinator",
         model=AGENT_MODEL,
         instruction=sys_inst + "\n\nCRITICAL INSTRUCTION: You are the root coordinator. If the user explicitly asks to update their memory, identity, or personality (or mentions identity.md, soul.md, etc.), YOU MUST route the request to the MemoryMaintenanceAgent.",
-        tools=BASE_TOOLS + [preload_memory, AgentTool(orch), AgentTool(maint)],
+        tools=BASE_TOOLS + [preload_memory, AgentTool(orch), AgentTool(maint)], # type: ignore
         generate_content_config=AGENT_GENERATE_CONTENT_CONFIG
     )
     return AvatarCoordinator
@@ -294,7 +295,7 @@ def _invoke_agent(message: str, session_id: str, user_id: str) -> dict:
         if getattr(event, "is_final_response", lambda: False)():
             logger.info("Found final response event!")
             if getattr(event, "content", None) and getattr(event.content, "parts", None):
-                for part in event.content.parts:
+                for part in event.content.parts: # type: ignore
                     text = getattr(part, "text", None)
                     if isinstance(text, str) and text.strip():
                         output += text.strip() + " "

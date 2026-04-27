@@ -3,7 +3,7 @@ import sqlite3
 import json
 import math
 import datetime
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 DEFAULT_DIMENSIONS = 64
 
@@ -75,7 +75,7 @@ def init_db(db_path: str):
             created_at TEXT NOT NULL
         )''')
 
-def retrieve_top_k(db_path: str, query: str, top_k: int = 5, exclude_message_id: int = None) -> List[Dict[str, Any]]:
+def retrieve_top_k(db_path: str, query: str, top_k: int = 5, exclude_message_id: Optional[int] = None) -> List[Dict[str, Any]]:
     query_vec = get_hash_embedding(query, DEFAULT_DIMENSIONS)
     
     with sqlite3.connect(db_path) as conn:

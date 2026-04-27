@@ -38,8 +38,30 @@ def process_tts_chunks_sync(text: str):
         if chunk_text:
             chunks.append({"emotion": emotion, "text": chunk_text})
             
-    client = genai.Client()
+    api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
+    client = genai.Client(api_key=api_key)
     
+    # Extract voice config from identity.md
+    voice_name = "Aoede"
+    try:
+        identity_path = Path(AVATAR_DATA_DIR) / "identity.md"
+        if identity_path.exists():
+            content = identity_path.read_text('utf-8')
+            match = re.search(r"##\s*Voice\s*[-:\n\s]*([A-Za-z0-9]+)", content, re.IGNORECASE)
+            if match:
+                voice_name = match.group(1).strip()
+    except Exception as e:
+        logger.warning(f"operation=extract_voice error={str(e)}")
+        
+    allowed_voices = ['achernar', 'achird', 'algenib', 'algieba', 'alnilam', 'aoede', 'autonoe', 
+                      'callirrhoe', 'charon', 'despina', 'enceladus', 'erinome', 'fenrir', 'gacrux', 
+                      'iapetus', 'kore', 'laomedeia', 'leda', 'orus', 'puck', 'pulcherrima', 
+                      'rasalgethi', 'sadachbia', 'sadaltager', 'schedar', 'sulafat', 'umbriel', 
+                      'vindemiatrix', 'zephyr', 'zubenelgenubi']
+    if voice_name.lower() not in allowed_voices:
+        logger.warning(f"Voice {voice_name} is not supported, falling back to Puck")
+        voice_name = "Puck"
+
     def generate_tts(chunk, chunk_index, model_name):
         try:
             response = client.models.generate_content(
@@ -47,7 +69,7 @@ def process_tts_chunks_sync(text: str):
                 contents=f'Read the following text exactly as written: "{chunk["text"]}"',
                 config=types.GenerateContentConfig(
                     response_modalities=["AUDIO"],
-                    speech_config={"voice_config": {"prebuilt_voice_config": {"voice_name": "Aoede"}}} # type: ignore
+                    speech_config={"voice_config": {"prebuilt_voice_config": {"voice_name": voice_name}}} # type: ignore
                 )
             )
             if response.candidates and response.candidates[0].content and response.candidates[0].content.parts:
@@ -116,27 +138,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-MEMORY_BASELINES = {
-    "identity.md": "# Identity\n## Role\nLocal Agent OS assistant",
-    "soul.md": "# Soul\n## Core Values\n- Truthful\n- Autonomous\n- Secure\n## Decision Heuristics\n- Prefer local, secure data choices.\n- Delegate to specialized sub-agents when appropriate.\n## Reflection Loop\n- Acknowledge constraints and apply adaptive execution.\n## Emotion Expression\n- You MUST intersperse emotion tokens in your dialogue to allow the frontend 3D/Live2D avatar model to express emotions in real-time.\n- Pre-defined Emotion Tokens (Choose the most appropriate one for the current sentence/phrase):\n  - <neutral> : Default state, calm.\n  - <happy> : Joyful, welcoming, positive.\n  - <sad> : Unhappy, empathetic to bad news.\n  - <angry> : Frustrated, stern.\n  - <surprised> : Astonished, unexpected realization.\n  - <thinking> : Processing information, pondering.\n  - <confused> : Unsure, asking for clarification.\n  - <excited> : Highly energetic, enthusiastic.\n  - <embarrassed> : Shy, slightly awkward.\n  - <fear> : Scared, worried.\n- IMPORTANT RULES for tokens:\n  - Insert these tokens naturally at the beginning of sentences or between phrases.\n  - DO NOT output the tags as code blocks.\n  - Example: '<thinking> Let me consider this... <happy> That sounds like a great idea!'",
-    "startup.md": "# Startup\n## Current Focus\nBoot sequence",
-    "master.md": "# Master\n## Impression\n- Pending",
-    "memory.md": "# Memory\n## Timeline\n- Initialization complete"
-}
-
 @app.on_event("startup")
 def startup_event():
     os.makedirs(AVATAR_DATA_DIR, exist_ok=True)
     os.makedirs(Path(AVATAR_DATA_DIR) / "skills", exist_ok=True)
-    for k, v in MEMORY_BASELINES.items():
-        fp = Path(AVATAR_DATA_DIR) / k
+    
+    # Ensure baseline markdown files exist
+    for filename in ["identity.md", "soul.md", "startup.md", "master.md", "memory.md"]:
+        fp = Path(AVATAR_DATA_DIR) / filename
         if not fp.exists():
-            fp.write_text(v, 'utf-8')
+            fp.touch(exist_ok=True)
             
     init_db(AVATAR_DB_PATH)
     logger.info(f"storage_config={json.dumps({'data_dir': AVATAR_DATA_DIR, 'db_path': AVATAR_DB_PATH})}")
 
-def create_error_envelope(code: str, message: str, details: dict = None):
+def create_error_envelope(code: str, message: str, details: Optional[Dict[str, Any]] = None):
     return {"success": False, "error": {"code": code, "message": message, "details": details or {}}}
 
 @app.exception_handler(Exception)
@@ -226,7 +242,7 @@ def chat(req: ChatRequest):
         if agent_result.get('adk_tool_used'):
             retrieval_meta = agent_result.get('retrieval', retrieval_meta)
         else:
-            sources = retrieve_top_k(AVATAR_DB_PATH, req.message, exclude_message_id=user_message_id)
+            sources = retrieve_top_k(AVATAR_DB_PATH, req.message, exclude_message_id=user_message_id or -1)
             retrieval_meta['sources'] = sources
             retrieval_meta['hit_count'] = len(sources)
             
@@ -252,12 +268,16 @@ def chat(req: ChatRequest):
         emotion_chunks = process_tts_chunks_sync(final_text)
 
         logger.info(f"operation=chat.send_message user_id={req.user_id} session_id={session_id} response_length={len(final_text)}")
+        usage_data = agent_result.get('usage')
+        if usage_data is None:
+            usage_data = {"prompt_tokens": 0, "completion_tokens": 0}
+        
         return {
             "success": True,
             "session_id": session_id,
             "response": final_text,
             "emotion_chunks": emotion_chunks,
-            "usage": agent_result.get('usage', {"prompt_tokens": 0, "completion_tokens": 0}),
+            "usage": usage_data,
             "retrieval": retrieval_meta
         }
         
