@@ -3,7 +3,6 @@
 .adk
 .agents/skills/gdg-course-design-pattern/references/change-log.md
 .agents/skills/post-change-test-and-sync
-/Avatar
 # Python-generated files
 __pycache__/
 *.py[oc]

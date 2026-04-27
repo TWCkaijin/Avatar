@@ -1,0 +1,370 @@
+"<!DOCTYPE html>
+<html lang=\"en\">
+<head>
+    <meta charset=\"UTF-8\">
+    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">
+    <title>Avatar Local Agent Demo</title>
+    <style>
+        body { font-family: sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        #chat-container { height: 300px; border: 1px solid #ccc; overflow-y: auto; padding: 10px; margin-bottom: 10px; }
+        .message { margin-bottom: 10px; padding: 8px; border-radius: 4px; }
+        .user { background-color: #e3f2fd; text-align: right; }
+        .bot { background-color: #f5f5f5; }
+        .emotion { font-weight: bold; color: #d32f2f; }
+        
+        #current-playback { 
+            margin-bottom: 15px; 
+            padding: 15px; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 8px;
+            color: white;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        #current-playback h3 { 
+            margin: 0 0 10px 0; 
+            font-size: 16px;
+            opacity: 0.9;
+        }
+        
+        #current-text { 
+            font-size: 20px; 
+            font-weight: 500;
+            margin: 10px 0;
+            line-height: 1.4;
+        }
+        
+        #current-emotion-display { 
+            display: inline-block;
+            padding: 8px 16px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 16px;
+        }
+        
+        #emotion-label { 
+            opacity: 0.8;
+            margin-right: 8px;
+        }
+        
+        #emotion-value { 
+            text-transform: capitalize;
+        }
+        
+        .emotion-neutral { background: rgba(156, 204, 101, 0.8); }
+        .emotion-happy { background: rgba(255, 193, 7, 0.8); }
+        .emotion-sad { background: rgba(96, 125, 139, 0.8); }
+        .emotion-angry { background: rgba(244, 67, 54, 0.8); }
+        .emotion-excited { background: rgba(255, 87, 34, 0.8); }
+        .emotion-calm { background: rgba(63, 81, 181, 0.8); }
+        
+        #input-container { display: flex; gap: 10px; }
+        #message-input { flex-grow: 1; padding: 8px; }
+        button { padding: 8px 16px; cursor: pointer; }
+        
+        .idle-state { opacity: 0.5; }
+        .playing-state { opacity: 1; animation: pulse 2s infinite; }
+        
+        @keyframes pulse {
+            0% { box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+            50% { box-shadow: 0 8px 15px rgba(0,0,0,0.2); }
+            100% { box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        }
+    </style>
+</head>
+<body>
+    <h1>Avatar Agent Demo (SSE Audio Stream)</h1>
+    
+    <!-- Current Playback Display -->
+    <div id="current-playback" class="idle-state">
+        <h3>🎵 Currently Playing</h3>
+        <div id="current-text">Waiting for audio...</div>
+        <div id="current-emotion-display">
+            <span id="emotion-label">Emotion:</span>
+            <span id="emotion-value">-</span>
+        </div>
+    </div>
+    
+    <div id="chat-container"></div>
+    
+    <div id="input-container">
+        <input type="text" id="message-input" placeholder="Type your message..." onkeypress="handleKeyPress(event)">
+        <button id="send-btn" onclick="sendMessage()">Send</button>
+    </div>
+
+    <script>
+        const chatContainer = document.getElementById('chat-container');
+        const messageInput = document.getElementById('message-input');
+        const sendBtn = document.getElementById('send-btn');
+        const currentTextEl = document.getElementById('current-text');
+        const currentEmotionDisplay = document.getElementById('current-emotion-display');
+        const emotionValueEl = document.getElementById('emotion-value');
+        const currentPlaybackEl = document.getElementById('current-playback');
+        
+        let currentAudioQueue = [];
+        let isPlaying = false;
+        let audioContext;
+
+        function initAudio() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
+            }
+        }
+
+        function appendMessage(sender, text) {
+            const div = document.createElement('div');
+            div.className = `message ${sender}`;
+            
+            // Highlight emotion tokens if bot
+            if (sender === 'bot') {
+                const highlightedText = text.replace(/(<[^>]+>)/g, '<span class=\"emotion\">$1</span>');
+                div.innerHTML = `<strong>${sender}:</strong> ${highlightedText}`;
+            } else {
+                div.innerHTML = `<strong>${sender}:</strong> ${text}`;
+            }
+            
+            chatContainer.appendChild(div);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        function updateCurrentEmotionFromText(text) {
+            const tokenMatches = text.match(/<([a-zA-Z_]+)>/g);
+            if (!tokenMatches || tokenMatches.length === 0) return;
+            const latestToken = tokenMatches[tokenMatches.length - 1];
+            emotionValueEl.textContent = latestToken.replace(/[<>]/g, '').toLowerCase();
+        }
+
+        function updateCurrentPlayback(text, emotion) {
+            // Update text
+            if (text && text.trim()) {
+                // Remove emotion tags from display text
+                const cleanText = text.replace(/<[^>]+>/g, '').trim();
+                currentTextEl.textContent = cleanText || '...';
+            }
+            
+            // Update emotion
+            if (emotion) {
+                const cleanEmotion = emotion.replace(/[<>]/g, '').toLowerCase();
+                emotionValueEl.textContent = cleanEmotion;
+                
+                // Update emotion display color
+                currentEmotionDisplay.className = '';
+                const emotionClass = `emotion-${cleanEmotion}`;
+                if (document.styleSheets[0].cssRules) {
+                    // Check if the class exists
+                    for (let rule of document.styleSheets[0].cssRules) {
+                        if (rule.selectorText && rule.selectorText.includes(emotionClass)) {
+                            currentEmotionDisplay.classList.add(emotionClass);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        function resetCurrentPlayback() {
+            currentTextEl.textContent = 'Waiting for audio...';
+            emotionValueEl.textContent = '-';
+            currentEmotionDisplay.className = '';
+            currentPlaybackEl.classList.remove('playing-state');
+            currentPlaybackEl.classList.add('idle-state');
+        }
+
+        function handleKeyPress(e) {
+            if (e.key === 'Enter') sendMessage();
+        }
+
+        // --- Audio Playback Queue ---
+        function parsePcmMimeType(mimeType) {
+            const fallback = { sampleRate: 24000, bitsPerSample: 16, channels: 1 };
+            if (!mimeType || !mimeType.startsWith('audio/pcm')) return fallback;
+
+            const rateMatch = mimeType.match(/rate=(\d+)/i);
+            const channelsMatch = mimeType.match(/channels=(\d+)/i);
+            const bitsMatch = mimeType.match(/bits=(\d+)/i);
+            return {
+                sampleRate: rateMatch ? parseInt(rateMatch[1], 10) : fallback.sampleRate,
+                bitsPerSample: bitsMatch ? parseInt(bitsMatch[1], 10) : fallback.bitsPerSample,
+                channels: channelsMatch ? parseInt(channelsMatch[1], 10) : fallback.channels,
+            };
+        }
+
+        function decodePcm16ToAudioBuffer(arrayBuffer, sampleRate, channels) {
+            const view = new DataView(arrayBuffer);
+            const totalSamples = Math.floor(view.byteLength / 2);
+            const frameCount = Math.floor(totalSamples / channels);
+            const audioBuffer = audioContext.createBuffer(channels, frameCount, sampleRate);
+
+            for (let ch = 0; ch < channels; ch++) {
+                const channelData = audioBuffer.getChannelData(ch);
+                for (let i = 0; i < frameCount; i++) {
+                    const sampleIndex = i * channels + ch;
+                    const sample = view.getInt16(sampleIndex * 2, true);
+                    channelData[i] = sample / 32768;
+                }
+            }
+            return audioBuffer;
+        }
+
+        async function decodeAudioChunk(chunk) {
+            const mimeType = (chunk.mimeType || '').toLowerCase();
+            if (mimeType.startsWith('audio/pcm')) {
+                const pcm = parsePcmMimeType(mimeType);
+                if (pcm.bitsPerSample !== 16) {
+                    throw new Error(`Unsupported PCM bit depth: ${pcm.bitsPerSample}`);
+                }
+                return decodePcm16ToAudioBuffer(chunk.arrayBuffer, pcm.sampleRate, pcm.channels);
+            }
+
+            try {
+                return await audioContext.decodeAudioData(chunk.arrayBuffer.slice(0));
+            } catch (err) {
+                // Fallback for providers that stream raw PCM without explicit metadata.
+                return decodePcm16ToAudioBuffer(chunk.arrayBuffer, 24000, 1);
+            }
+        }
+
+        async function playNextAudio() {
+            if (currentAudioQueue.length === 0) {
+                isPlaying = false;
+                console.log('Audio playback queue empty, stopping');
+                resetCurrentPlayback();
+                return;
+            }
+            
+            isPlaying = true;
+            currentPlaybackEl.classList.remove('idle-state');
+            currentPlaybackEl.classList.add('playing-state');
+            
+            const chunk = currentAudioQueue.shift();
+            
+            try {
+                // Update display for this chunk - show text and emotion
+                updateCurrentPlayback(chunk.text, chunk.emotion);
+                console.log('Playing chunk ' + chunk.chunkIndex + ' with emotion: ' + chunk.emotion + ', text: ' + chunk.text);
+                
+                const audioBuffer = await decodeAudioChunk(chunk);
+                const source = audioContext.createBufferSource();
+                source.buffer = audioBuffer;
+                source.connect(audioContext.destination);
+                source.onended = playNextAudio;
+                source.start();
+            } catch (e) {
+                console.error('Audio decode/playback error:', e);
+                // Fallback / skip this chunk and continue to next
+                playNextAudio();
+            }
+        }
+
+        function base64ToArrayBuffer(base64) {
+            const binaryString = window.atob(base64);
+            const len = binaryString.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+            }
+            return bytes.buffer;
+        }
+
+        async function sendMessage() {
+            const text = messageInput.value.trim();
+            if (!text) return;
+
+            initAudio(); // Must init after user interaction
+            appendMessage('user', text);
+            messageInput.value = '';
+            messageInput.disabled = true;
+            sendBtn.disabled = true;
+
+            try {
+                // Use fetch API to call the chat endpoint
+                const response = await fetch('/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: 'demo_user', message: text })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    appendMessage('bot', '[Error ' + response.status + ': ' + (errorData?.error?.message || response.statusText) + ']');
+                    resetCurrentPlayback();
+                    return;
+                }
+
+                // Parse the single JSON response
+                const data = await response.json();
+
+                if (!data.success) {
+                    appendMessage('bot', '[Error: ' + (data.error?.message || 'Unknown error') + ']');
+                    resetCurrentPlayback();
+                    return;
+                }
+
+                // Display the full text response
+                const botText = data.response || data.text || '';
+                appendMessage('bot', botText);
+                
+                // Extract and display the last emotion from the text
+                updateCurrentEmotionFromText(botText);
+                
+                // Clear existing queue
+                currentAudioQueue = [];
+                
+                // Queue all audio chunks from emotion_chunks
+                if (data.emotion_chunks && Array.isArray(data.emotion_chunks)) {
+                    console.log('Processing ' + data.emotion_chunks.length + ' emotion chunks');
+                    
+                    for (const chunk of data.emotion_chunks) {
+                        if (chunk.error) {
+                            console.warn('Chunk ' + chunk.chunk_index + ' (' + chunk.emotion + ') has error: ' + chunk.error);
+                            continue;
+                        }
+                        
+                        if (!chunk.audio_b64 || !chunk.mime_type) {
+                            console.warn('Chunk ' + chunk.chunk_index + ' (' + chunk.emotion + ') missing audio data');
+                            continue;
+                        }
+                        
+                        // Decode base64 and add to queue
+                        try {
+                            const arrayBuffer = base64ToArrayBuffer(chunk.audio_b64);
+                            currentAudioQueue.push({
+                                arrayBuffer,
+                                mimeType: chunk.mime_type,
+                                emotion: chunk.emotion,
+                                text: chunk.text,
+                                chunkIndex: chunk.chunk_index,
+                            });
+                            console.log('Queued chunk ' + chunk.chunk_index + ' (' + chunk.emotion + '): ' + chunk.text.substring(0, 50) + '...');
+                        } catch (decodeErr) {
+                            console.error('Failed to decode audio for chunk ' + chunk.chunk_index + ':', decodeErr);
+                        }
+                    }
+                    
+                    // Start playback if queue is not empty
+                    if (currentAudioQueue.length > 0 && !isPlaying) {
+                        console.log('Starting playback of ' + currentAudioQueue.length + ' queued chunks');
+                        playNextAudio();
+                    } else if (currentAudioQueue.length === 0) {
+                        console.warn('No audio chunks to play');
+                    }
+                }
+
+                if (data.usage) {
+                    console.log('Token Usage:', data.usage);
+                }
+
+            } catch (err) {
+                console.error(err);
+                appendMessage('bot', '[Network Error: ' + err.message + ']');
+                resetCurrentPlayback();
+            } finally {
+                messageInput.disabled = false;
+                sendBtn.disabled = false;
+                messageInput.focus();
+            }
+        }
+    </script>
+</body>
+</html>"
