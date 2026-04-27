@@ -29,7 +29,8 @@ logger = logging.getLogger("uvicorn.error")
 
 def load_system_instruction() -> str:
     parts = []
-    for f in ['identity.md', 'soul.md', 'master.md']:
+    # 讀取身分、靈魂、使用者印象以及歷史記憶
+    for f in ['identity.md', 'soul.md', 'master.md', 'memory.md']:
         p = Path(AVATAR_DATA_DIR) / f
         if p.exists():
             parts.append(p.read_text('utf-8'))
@@ -188,10 +189,18 @@ def execute_skill(skill_name: str, input_json: str = "{}") -> str:
         return f"TOOL_RUNTIME_ERROR: {str(e)}"
         
 def preload_memory() -> str:
-    return "Memory default loaded."
+    """初始化載入記憶時間線"""
+    return load_memory()
 
 def load_memory() -> str:
-    return "Memory loaded."
+    """從 memory.md 讀取完整的歷史記憶時間線"""
+    p = Path(AVATAR_DATA_DIR) / "memory.md"
+    if p.exists():
+        try:
+            return p.read_text('utf-8')
+        except Exception as e:
+            return f"Error reading memory: {str(e)}"
+    return "No memory timeline (memory.md) found."
 
 def read_runtime_context(tool_context=None) -> str:
     return json.dumps({
@@ -205,32 +214,6 @@ def google_search(query: str) -> str:
 BASE_TOOLS = [google_search]
 MEMORY_OP_TOOLS = [read_file, write_file, append_file, create_file]
 COMPOSER_TOOLS = [load_memory, read_runtime_context, list_skills, read_skill, create_skill, execute_skill] + MEMORY_OP_TOOLS
-
-def create_orchestrator_agent() -> LlmAgent:
-    sys_inst = load_system_instruction()
-    ContextCollector = LlmAgent(name="ContextCollector", model=AGENT_MODEL, instruction=sys_inst, tools=BASE_TOOLS + [load_memory, read_runtime_context], generate_content_config=AGENT_GENERATE_CONTENT_CONFIG, output_key="collected_context") # type: ignore
-    MemoryRetriever = LlmAgent(name="MemoryRetriever", model=AGENT_MODEL, instruction=sys_inst, tools=BASE_TOOLS + [search_memory, load_memory], generate_content_config=AGENT_GENERATE_CONTENT_CONFIG, output_key="retrieval_context") # type: ignore
-    ResponseComposer = LlmAgent(name="ResponseComposer", model=AGENT_MODEL, instruction=sys_inst, tools=BASE_TOOLS + COMPOSER_TOOLS, generate_content_config=AGENT_GENERATE_CONTENT_CONFIG, output_key="final_response") # type: ignore
-    
-    SequentialFlowTemplate = LlmAgent(name="SequentialFlowTemplate", model=AGENT_MODEL, instruction="", tools=BASE_TOOLS + [AgentTool(ContextCollector), AgentTool(MemoryRetriever), AgentTool(ResponseComposer)], generate_content_config=AGENT_GENERATE_CONTENT_CONFIG, output_key="sequential_template_result") # type: ignore
-    ParallelFlowTemplate = LlmAgent(name="ParallelFlowTemplate", model=AGENT_MODEL, instruction="", tools=BASE_TOOLS + [AgentTool(ContextCollector), AgentTool(MemoryRetriever), AgentTool(ResponseComposer)], generate_content_config=AGENT_GENERATE_CONTENT_CONFIG, output_key="parallel_template_result") # type: ignore
-    LoopFlowTemplate = LlmAgent(name="LoopFlowTemplate", model=AGENT_MODEL, instruction="", tools=BASE_TOOLS + [AgentTool(ContextCollector), AgentTool(MemoryRetriever), AgentTool(ResponseComposer)], generate_content_config=AGENT_GENERATE_CONTENT_CONFIG, output_key="loop_template_result") # type: ignore
-    
-    ConversationOrchestrator = LlmAgent(
-        name="ConversationOrchestrator",
-        model=AGENT_MODEL,
-        instruction="Orchestrate the conversation",
-        tools=BASE_TOOLS + [ # type: ignore
-            AgentTool(ContextCollector),
-            AgentTool(MemoryRetriever),
-            AgentTool(ResponseComposer),
-            AgentTool(SequentialFlowTemplate),
-            AgentTool(ParallelFlowTemplate),
-            AgentTool(LoopFlowTemplate)
-        ],
-        generate_content_config=AGENT_GENERATE_CONTENT_CONFIG
-    )
-    return ConversationOrchestrator
 
 def create_memory_maintenance_agent() -> LlmAgent:
     sys_inst = load_system_instruction()
@@ -247,14 +230,69 @@ def create_memory_maintenance_agent() -> LlmAgent:
 
 def create_root_agent() -> LlmAgent:
     sys_inst = load_system_instruction()
-    orch = create_orchestrator_agent()
+    
+    # 1. 核心流程代理人 (Core Pipeline Agents)
+    ContextCollector = LlmAgent(name="ContextCollector", model=AGENT_MODEL, instruction=sys_inst + "\nYou are the Context Collector. Gather all relevant context from the current session state.", tools=BASE_TOOLS + [load_memory, read_runtime_context], generate_content_config=AGENT_GENERATE_CONTENT_CONFIG, output_key="collected_context") # type: ignore
+    MemoryRetriever = LlmAgent(name="MemoryRetriever", model=AGENT_MODEL, instruction=sys_inst + "\nYou are the Memory Retriever. Search historical memory using search_memory tool based on collected context.", tools=BASE_TOOLS + [search_memory, load_memory], generate_content_config=AGENT_GENERATE_CONTENT_CONFIG, output_key="retrieval_context") # type: ignore
+    ResponseComposer = LlmAgent(name="ResponseComposer", model=AGENT_MODEL, instruction=sys_inst + "\nYou are the final Response Composer. Synthesize all outputs from the session state (collected_context, retrieval_context, research_result, file_result) into a final answer. Remember to use emotion tags.", tools=BASE_TOOLS + COMPOSER_TOOLS, generate_content_config=AGENT_GENERATE_CONTENT_CONFIG, output_key="final_response") # type: ignore
+
+    # 2. 建立各種專家代理人 (Specialists)
+    ResearchSpecialist = LlmAgent(
+        name="ResearchSpecialist", 
+        model=AGENT_MODEL, 
+        instruction=sys_inst + "\n\nYou are a Research Specialist. Your job is to search the internet or use available context to answer factual questions. Do not guess; use your tools.", 
+        tools=BASE_TOOLS + [search_memory, load_memory], # type: ignore
+        generate_content_config=AGENT_GENERATE_CONTENT_CONFIG, 
+        output_key="research_result"
+    ) # type: ignore
+    
+    FileSpecialist = LlmAgent(
+        name="FileSpecialist", 
+        model=AGENT_MODEL, 
+        instruction=sys_inst + "\n\nYou are a File Specialist. Your job is to read and manage files in the workspace (except critical memory files like identity.md, soul.md).", 
+        tools=BASE_TOOLS + [read_file, list_skills], # type: ignore
+        generate_content_config=AGENT_GENERATE_CONTENT_CONFIG, 
+        output_key="file_result"
+    ) # type: ignore
+    
     maint = create_memory_maintenance_agent()
+    
+    # 3. 定義 Root Agent 的動態路由指令 (Planner / Orchestrator)
+    root_inst = sys_inst + """
+    
+CRITICAL INSTRUCTION: You are the Avatar OS Root Coordinator. You act as a Planner and Orchestrator. You MUST analyze the user's request and route the task to the appropriate sub-agents. 
+
+Available Core Agents (Use for standard answering pipeline):
+- ContextCollector: To gather current session context.
+- MemoryRetriever: To pull relevant historical memory.
+- ResponseComposer: To write the final answer.
+
+Available Specialists (Use for specific actions):
+- ResearchSpecialist: For finding external facts or deep searching memory.
+- FileSpecialist: For reading workspace files and listing skills.
+- MemoryMaintenanceAgent: For updating system memory files (identity.md, soul.md, master.md, memory.md).
+
+How to work:
+1. For simple questions, you can route to ResponseComposer directly.
+2. For complex answering, use the core pipeline: ContextCollector -> MemoryRetriever -> ResponseComposer.
+3. If the user asks to modify identity, rules, or personality, you MUST use the MemoryMaintenanceAgent.
+4. If a specific file needs reading, use FileSpecialist. If deep factual checking is needed, use ResearchSpecialist.
+5. ALWAYS ensure that ResponseComposer is called at the end to generate the final response with emotion tokens.
+    """
     
     AvatarCoordinator = LlmAgent(
         name="AvatarCoordinator",
         model=AGENT_MODEL,
-        instruction=sys_inst + "\n\nCRITICAL INSTRUCTION: You are the root coordinator. If the user explicitly asks to update their memory, identity, or personality (or mentions identity.md, soul.md, etc.), YOU MUST route the request to the MemoryMaintenanceAgent.",
-        tools=BASE_TOOLS + [preload_memory, AgentTool(orch), AgentTool(maint)], # type: ignore
+        instruction=root_inst,
+        tools=BASE_TOOLS + [ # type: ignore
+            preload_memory,
+            AgentTool(ContextCollector),
+            AgentTool(MemoryRetriever),
+            AgentTool(ResponseComposer),
+            AgentTool(ResearchSpecialist),
+            AgentTool(FileSpecialist),
+            AgentTool(maint)
+        ],
         generate_content_config=AGENT_GENERATE_CONTENT_CONFIG
     )
     return AvatarCoordinator

@@ -21,18 +21,22 @@ def test_agent_graph():
     # Check that tools include the orchestrator sub-agents and basic tools
     # By default google_search, preload_memory are functions.
     # AgentTools wrap sub-agents.
-    has_orch = False
+    has_research = False
     has_maint = False
+    has_composer = False
     
     for tool in root.tools:
         agent_obj = getattr(tool, 'agent', None)
         if agent_obj is not None: # It is an AgentTool wrapper
-            if agent_obj.name == "ConversationOrchestrator":
-                has_orch = True
-                # Validate the orchestrator inherits config
+            if agent_obj.name == "ResearchSpecialist":
+                has_research = True
+                # Validate the orchestrator parts inherit config
                 assert agent_obj.generate_content_config == AGENT_GENERATE_CONTENT_CONFIG
             elif agent_obj.name == "MemoryMaintenanceAgent":
                 has_maint = True
+            elif agent_obj.name == "ResponseComposer":
+                has_composer = True
                 
-    assert has_orch, "ConversationOrchestrator missing from root tools"
+    assert has_research, "ResearchSpecialist missing from root tools"
     assert has_maint, "MemoryMaintenanceAgent missing from root tools"
+    assert has_composer, "ResponseComposer missing from root tools"
